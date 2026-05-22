@@ -73,8 +73,9 @@ class AuthService {
   }
 
   private updateToken(session: CognitoUserSession) {
-    const accessToken = session.getAccessToken().getJwtToken();
-    this.state.token = accessToken;
+    // Cache the ID token — backend reads tenant_id from its custom claims.
+    const idToken = session.getIdToken().getJwtToken();
+    this.state.token = idToken;
     this.saveToStorage();
   }
 
@@ -102,7 +103,9 @@ class AuthService {
           resolve(null);
         } else {
           this.updateToken(session);
-          resolve(session.getAccessToken().getJwtToken());
+          // Return the ID token (not the access token) so the backend can
+          // read Cognito custom attributes like `custom:tenant_id`.
+          resolve(session.getIdToken().getJwtToken());
         }
       });
     }).finally(() => {
@@ -122,14 +125,16 @@ class AuthService {
 
       cognitoUser.authenticateUser(authDetails, {
         onSuccess: (session: CognitoUserSession) => {
-          const accessToken = session.getAccessToken().getJwtToken();
+          // Persist the ID token (not access). The ID token carries Cognito
+          // user attributes (`custom:tenant_id`) that the backend needs.
+          const idToken = session.getIdToken().getJwtToken();
           const idPayload = session.getIdToken().payload;
           const user = {
             id: idPayload.sub as string,
             name: (idPayload.name || idPayload.email || username) as string,
             email: idPayload.email as string,
           };
-          this.state = { user, isAuthenticated: true, token: accessToken, loginTimestamp: Date.now() };
+          this.state = { user, isAuthenticated: true, token: idToken, loginTimestamp: Date.now() };
           this.saveToStorage();
           resolve(user);
         },
