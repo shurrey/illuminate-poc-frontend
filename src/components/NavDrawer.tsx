@@ -10,6 +10,7 @@ import {
   BookOpen,
   MessageSquare,
   Database,
+  Layers,
   ShieldCheck,
   HelpCircle,
   Settings,
@@ -45,6 +46,7 @@ const navSections: NavSection[] = [
     ],
   },
   { label: "Data Dictionary", href: "/developer", icon: BookOpen },
+  { label: "Metric Definitions", href: "/admin/definitions", icon: Layers },
   { label: "Settings", href: "/settings", icon: Settings },
   {
     label: "Privacy & Security",
