@@ -40,3 +40,27 @@ export async function executeQuery(sql: string, params?: Record<string, unknown>
 
   return resp.json();
 }
+
+/**
+ * Execute a canonical metric by id. The backend resolves the canonical
+ * definition (plus any tenant overlay), compiles SQL, and runs it against
+ * Snowflake — returns the same {columns, rows} shape as `executeQuery`.
+ */
+export async function executeMetric(metric_id: string): Promise<QueryResult> {
+  const token = await authService.getValidToken();
+  const resp = await fetch(`${API_URL}/api/v1/dashboard/metric`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ metric_id }),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Metric query failed (${resp.status}): ${text}`);
+  }
+
+  return resp.json();
+}

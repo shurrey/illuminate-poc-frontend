@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useCardStore } from "@/context/CardStoreContext";
 import { type DashboardCard } from "@/data/dashboardCards";
-import { executeQuery } from "@/services/dashboardApi";
+import { executeMetric, executeQuery } from "@/services/dashboardApi";
 
 export interface CardResult {
   card: DashboardCard;
@@ -40,7 +40,13 @@ export function useDashboardCards(): CardResult[] {
       if (fetchedIdsRef.current.has(card.id)) return;
       fetchedIdsRef.current.add(card.id);
 
-      executeQuery(card.query)
+      // Prefer the canonical metric endpoint when the card declares a
+      // metric_id (built-in cards). Fall back to raw-SQL execution for
+      // user-created cards or built-in cards whose SQL pre-dates the catalog.
+      const fetchPromise = card.metric_id
+        ? executeMetric(card.metric_id)
+        : executeQuery(card.query);
+      fetchPromise
         .then((result) => {
           const row = result.rows?.[0];
           if (!row) {
