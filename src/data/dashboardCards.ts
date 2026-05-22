@@ -4,7 +4,19 @@ export interface DashboardCard {
   description: string;
   longDescription: string;
   prompt: string;
+  /**
+   * Raw SQL. Required for user-created cards and as a fallback for built-in
+   * cards when the metric endpoint is unavailable. The hook prefers
+   * `metric_id` when set.
+   */
   query: string;
+  /**
+   * Canonical metric id (e.g. `metric.dashboard.active_students.v1`). When
+   * present, the hook calls /api/v1/dashboard/metric instead of executing
+   * the raw `query` — definition lives server-side in the canonical YAML,
+   * with single-source-of-truth provenance.
+   */
+  metric_id?: string;
   valueKey: string;
   changeKey?: string;
   format: "number" | "percent" | "grade";
@@ -17,6 +29,7 @@ export interface DashboardCard {
 export const dashboardCards: DashboardCard[] = [
   {
     id: "total-enrollment",
+    metric_id: "metric.dashboard.active_students.v1",
     label: "Active Students",
     description: "Students enrolled in active courses this term",
     longDescription: "Counts distinct students who are actively enrolled (STUDENT_IND = TRUE, ACTIVE = '1') in courses belonging to the currently running academic term(s). The comparison value shows enrollment from the most recently completed prior term. This metric is a leading indicator of institutional health — sustained growth suggests effective recruitment and retention, while decline may signal issues with student experience, program relevance, or seasonal enrollment patterns.",
@@ -76,6 +89,7 @@ CROSS JOIN previous_students ps`,
   },
   {
     id: "retention-rate",
+    metric_id: "metric.dashboard.retention_rate.v1",
     label: "Retention Rate",
     description: "Term-over-term student retention",
     longDescription: "Measures the percentage of students who were enrolled in the previous 90-day window and returned for the current 90-day window. Uses rolling enrollment windows rather than academic terms to provide a consistent view across institutions with different term structures. A declining retention rate may indicate issues with student satisfaction, academic support, or course quality that warrant further investigation.",
@@ -132,6 +146,7 @@ FROM rates`,
   },
   {
     id: "platform-engagement",
+    metric_id: "metric.dashboard.platform_engagement.v1",
     label: "Platform Engagement",
     description: "Students with platform activity in the last 7 days",
     longDescription: "Calculates the percentage of actively enrolled students who accessed the LMS platform within the most recent 7-day window, compared to the prior 7-day window. The activity anchor is based on the latest observed access timestamp to ensure meaningful results even with stale sample data. This metric reflects how actively students are using the learning platform — low engagement may correlate with poor outcomes and is often an early warning signal for at-risk students.",
@@ -195,6 +210,7 @@ CROSS JOIN denom d`,
   },
   {
     id: "active-courses",
+    metric_id: "metric.dashboard.active_courses.v1",
     label: "Active Courses",
     description: "Courses with student activity in the last 7 days",
     longDescription: "Counts the number of available courses in currently running terms that had at least one student access event in the last 7 days, compared to the prior 7-day window. A course is considered active if it is marked as available and belongs to a term whose start and end dates encompass the current timestamp. This metric helps identify whether course offerings are being utilized and can surface courses that may need attention or intervention.",
@@ -247,6 +263,7 @@ CROSS JOIN active_previous ap`,
   },
   {
     id: "instructor-engagement",
+    metric_id: "metric.dashboard.instructor_engagement.v1",
     label: "Instructor Engagement",
     description: "Courses with instructor grading activity this week",
     longDescription: "Measures the percentage of active courses where a primary instructor (role 'P') or teaching assistant (role 'T') manually entered at least one grade in the last 7 days. Only manual grades are counted — automated or system-generated grades are excluded. This is an early-warning indicator for Regular and Substantive Interaction (RSI) compliance risk. Low instructor engagement may indicate courses that need administrative follow-up.",
@@ -318,6 +335,7 @@ CROSS JOIN denom d`,
   },
   {
     id: "classic-holdouts",
+    metric_id: "metric.dashboard.classic_holdouts.v1",
     label: "Classic Courses Still Active",
     description: "Classic courses with activity this week",
     longDescription: "Counts the number of Original Experience (Classic, DESIGN_MODE = 'C') courses that had student or instructor activity in the last 7 days. The goal is to drive this number to zero before the Classic experience sunset date. The comparison shows week-over-week change — a decreasing trend indicates successful migration progress. Courses still showing activity should be prioritized for migration planning and instructor outreach.",
