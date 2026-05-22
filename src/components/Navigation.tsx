@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NotificationCenter } from "./NotificationCenter";
@@ -11,6 +11,7 @@ import {
   BarChart3,
   BookOpen,
   MessageSquare,
+  Database,
   LogOut,
   Menu,
   Settings,
@@ -22,6 +23,7 @@ import { useAuth } from "@/context/AuthContext";
 const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/chat", label: "Ask Illuminate", icon: MessageSquare },
+  { href: "/queries", label: "Query Builder", icon: Database },
   { href: "/reporting", label: "Reporting", icon: BarChart3 },
   { href: "/developer", label: "Data Dictionary", icon: BookOpen },
 ];
@@ -29,7 +31,10 @@ const navItems = [
 export function Navigation() {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const { signOut } = useAuth();
+
+  useEffect(() => { setHydrated(true); }, []);
 
   return (
     <>
@@ -53,8 +58,10 @@ export function Navigation() {
               <nav className="hidden md:flex items-center gap-0.5 ml-2">
                 {navItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href ||
-                    (item.href !== "/" && pathname.startsWith(item.href));
+                  const isActive = hydrated && (
+                    pathname === item.href ||
+                    (item.href !== "/" && pathname.startsWith(item.href))
+                  );
                   return (
                     <Link
                       key={item.href}

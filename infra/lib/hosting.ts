@@ -13,7 +13,7 @@ export interface HostingProps {
 
 /**
  * S3 + CloudFront static hosting for the Next.js exported site.
- * SPA-style routing: all paths fall back to index.html.
+ * Uses a CloudFront Function to rewrite URIs so /foo/ resolves to /foo/index.html.
  */
 export class Hosting extends Construct {
   public readonly distribution: cloudfront.Distribution;
@@ -28,14 +28,50 @@ export class Hosting extends Construct {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
 
+    // CloudFront Function to rewrite URIs:
+    //   /            → /index.html
+    //   /reporting/  → /reporting/index.html
+    //   /developer/  → /developer/index.html
+    //   /foo         → /foo/index.html  (trailing slash added)
+    //   /foo.js      → /foo.js          (files with extensions pass through)
+    const rewriteFunction = new cloudfront.Function(this, "UrlRewrite", {
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+
+  // If URI has a file extension, pass through (static assets)
+  if (uri.match(/\\.[a-zA-Z0-9]+$/)) {
+    return request;
+  }
+
+  // Append /index.html for directory-like paths
+  if (uri.endsWith('/')) {
+    request.uri = uri + 'index.html';
+  } else {
+    request.uri = uri + '/index.html';
+  }
+
+  return request;
+}
+      `),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+    });
+
     this.distribution = new cloudfront.Distribution(this, "Distribution", {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        functionAssociations: [
+          {
+            function: rewriteFunction,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
       },
       defaultRootObject: "index.html",
-      // SPA fallback: serve index.html for client-side routes
+      // SPA fallback for truly unknown routes (not pre-rendered)
       errorResponses: [
         {
           httpStatus: 403,

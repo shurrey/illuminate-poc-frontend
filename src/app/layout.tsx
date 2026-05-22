@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { UserProvider } from "@/context/UserContext";
+import { QueryBuilderProvider } from "@/context/QueryBuilderContext";
+import { CardStoreProvider } from "@/context/CardStoreContext";
 import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { HelpButton } from "@/components/HelpButton";
@@ -21,10 +23,14 @@ export default function RootLayout({
       <body className="bg-[#f5f6f8] text-gray-900 antialiased flex flex-col min-h-screen">
         <AuthProvider>
           <UserProvider>
-            <Navigation />
-            <main className="flex-1">{children}</main>
-            <Footer />
-            <HelpButton />
+            <QueryBuilderProvider>
+              <CardStoreProvider>
+                <Navigation />
+                <main className="flex-1">{children}</main>
+                <Footer />
+                <HelpButton />
+              </CardStoreProvider>
+            </QueryBuilderProvider>
           </UserProvider>
         </AuthProvider>
       </body>

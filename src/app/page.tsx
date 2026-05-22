@@ -7,7 +7,8 @@ import { useDashboardCards } from "@/hooks/useDashboardCards";
 import { WhatChangedFeed } from "@/components/WhatChangedFeed";
 import { QuickAccessBar } from "@/components/QuickAccessBar";
 import { DataQASearch } from "@/components/DataQASearch";
-import { SlidersHorizontal, X, GripVertical } from "lucide-react";
+import { CustomizePanel } from "@/components/CustomizePanel";
+import { SlidersHorizontal, GripVertical, X } from "lucide-react";
 
 type WidgetId = "ai" | "kpis" | "feed" | "quickaccess";
 
@@ -23,7 +24,8 @@ const defaultWidgets: WidgetId[] = ["ai", "kpis", "feed", "quickaccess"];
 export default function HomePage() {
   const { visibleWidgets, setVisibleWidgets } = useUser();
   const cardResults = useDashboardCards();
-  const [customizing, setCustomizing] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
+  const [showWidgetConfig, setShowWidgetConfig] = useState(false);
 
   const widgets = visibleWidgets.length > 0 ? visibleWidgets as WidgetId[] : defaultWidgets;
 
@@ -41,36 +43,36 @@ export default function HomePage() {
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">
-            Your institutional analytics at a glance
-          </p>
+          <p className="text-gray-500 mt-1">Your institutional analytics at a glance</p>
         </div>
-        <button
-          onClick={() => setCustomizing(!customizing)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-            customizing
-              ? "bg-[#0066FF] text-white"
-              : "bg-white border border-gray-200 text-gray-600 hover:border-[#0066FF] hover:text-[#0066FF]"
-          }`}
-        >
-          <SlidersHorizontal size={15} />
-          Customize
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowWidgetConfig(!showWidgetConfig)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              showWidgetConfig
+                ? "bg-gray-200 text-gray-700"
+                : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"
+            }`}
+          >
+            <GripVertical size={15} />
+            Sections
+          </button>
+          <button
+            onClick={() => setShowCustomize(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:border-[#0066FF] hover:text-[#0066FF] transition-colors"
+          >
+            <SlidersHorizontal size={15} />
+            Customize
+          </button>
+        </div>
       </div>
 
-      {/* Customization Panel */}
-      {customizing && (
-        <div className="mb-6 bg-white rounded-xl border border-[#0066FF]/20 p-4">
+      {/* Widget section toggle */}
+      {showWidgetConfig && (
+        <div className="mb-6 bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900">
-              Choose which sections to display
-            </h3>
-            <button
-              onClick={() => setCustomizing(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <X size={16} />
-            </button>
+            <h3 className="text-sm font-semibold text-gray-900">Dashboard Sections</h3>
+            <button onClick={() => setShowWidgetConfig(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
           </div>
           <div className="flex flex-wrap gap-2">
             {defaultWidgets.map((id) => (
@@ -83,7 +85,6 @@ export default function HomePage() {
                     : "bg-gray-50 border-gray-200 text-gray-400"
                 }`}
               >
-                <GripVertical size={14} />
                 {widgetLabels[id]}
               </button>
             ))}
@@ -122,6 +123,9 @@ export default function HomePage() {
           )}
         </div>
       )}
+
+      {/* Customize panel (slide-out) */}
+      {showCustomize && <CustomizePanel onClose={() => setShowCustomize(false)} />}
     </div>
   );
 }

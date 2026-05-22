@@ -18,12 +18,23 @@ export interface TableData {
   columns: string[];
 }
 
+export interface QueryParameter {
+  name: string;
+  label: string;
+  type: "text" | "number" | "date" | "select";
+  required: boolean;
+  placeholder?: string;
+  description?: string;
+  options?: string[];
+}
+
 export interface Artifact {
   id: string;
   type: ArtifactType;
   data: ChartConfig | TableData | string;
   title?: string;
   description?: string;
+  parameters?: QueryParameter[];
 }
 
 export interface MessagePart {

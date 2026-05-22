@@ -9,6 +9,7 @@ import {
   BarChart3,
   BookOpen,
   MessageSquare,
+  Database,
   ShieldCheck,
   HelpCircle,
   Settings,
@@ -30,6 +31,7 @@ interface NavSection {
 const navSections: NavSection[] = [
   { label: "Home", href: "/", icon: Home },
   { label: "Ask Illuminate", href: "/chat", icon: MessageSquare },
+  { label: "Query Builder", href: "/queries", icon: Database },
   {
     label: "Reporting",
     href: "/reporting",

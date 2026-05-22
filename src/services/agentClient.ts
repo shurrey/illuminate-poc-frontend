@@ -4,8 +4,8 @@ import type { Message, AgentResponse, Artifact, MessageRole, StreamingEvent } fr
 const API_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
 
 class AgentClient {
-  private getAuthHeaders(): Record<string, string> {
-    const token = authService.getToken();
+  private async getAuthHeaders(): Promise<Record<string, string>> {
+    const token = await authService.getValidToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
@@ -38,7 +38,7 @@ class AgentClient {
       headers: {
         "Content-Type": "application/json",
         Accept: "text/event-stream",
-        ...(this.getAuthHeaders()),
+        ...(await this.getAuthHeaders()),
       },
       body: JSON.stringify(request),
       signal,
@@ -76,7 +76,7 @@ class AgentClient {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(this.getAuthHeaders()),
+          ...(await this.getAuthHeaders()),
         },
       });
       if (!response.ok) return false;

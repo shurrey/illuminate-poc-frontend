@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { dashboardCards, type DashboardCard } from "@/data/dashboardCards";
+import { useCardStore } from "@/context/CardStoreContext";
+import { type DashboardCard } from "@/data/dashboardCards";
 import { executeQuery } from "@/services/dashboardApi";
 
 export interface CardResult {
@@ -9,41 +10,54 @@ export interface CardResult {
   value: string | null;
   rawValue: number | null;
   rawPrevious: number | null;
-  change: number | null;   // percentage change or absolute diff
+  change: number | null;
   loading: boolean;
   error: string | null;
 }
 
 function resolveKey(row: Record<string, unknown>, key: string): unknown {
-  // Try exact, then lowercase, then first value
   return row[key] ?? row[key.toLowerCase()] ?? undefined;
 }
 
 export function useDashboardCards(): CardResult[] {
-  const [results, setResults] = useState<CardResult[]>(
-    dashboardCards.map((card) => ({ card, value: null, rawValue: null, rawPrevious: null, change: null, loading: true, error: null }))
-  );
-  const fetchedRef = useRef(false);
+  const { enabledCards } = useCardStore();
+  const [results, setResults] = useState<CardResult[]>([]);
+  const fetchedIdsRef = useRef<Set<string>>(new Set());
 
+  // Sync results array with enabled cards
   useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
+    setResults((prev) => {
+      const prevMap = new Map(prev.map((r) => [r.card.id, r]));
+      return enabledCards.map((card) =>
+        prevMap.get(card.id) || { card, value: null, rawValue: null, rawPrevious: null, change: null, loading: true, error: null }
+      );
+    });
+  }, [enabledCards]);
 
-    dashboardCards.forEach((card, idx) => {
+  // Fetch data for any cards that haven't been fetched yet
+  useEffect(() => {
+    enabledCards.forEach((card, idx) => {
+      if (fetchedIdsRef.current.has(card.id)) return;
+      fetchedIdsRef.current.add(card.id);
+
       executeQuery(card.query)
         .then((result) => {
           const row = result.rows?.[0];
           if (!row) {
-            setResults((prev) => { const next = [...prev]; next[idx] = { ...next[idx], value: "—", loading: false }; return next; });
+            setResults((prev) => {
+              const next = [...prev];
+              const i = next.findIndex((r) => r.card.id === card.id);
+              if (i >= 0) next[i] = { ...next[i], value: "—", loading: false };
+              return next;
+            });
             return;
           }
 
-          // Resolve value — also grab the "previous" column (second column typically)
           const rawValue = resolveKey(row, card.valueKey) ?? Object.values(row)[0];
           const allValues = Object.values(row).map(Number).filter((n) => !isNaN(n));
           const numericValue = rawValue !== null && rawValue !== undefined ? Number(rawValue) : null;
-          // Previous is typically the second numeric column
           const previousValue = allValues.length >= 2 ? allValues[1] : null;
+
           let formatted: string;
           if (rawValue === null || rawValue === undefined) {
             formatted = "—";
@@ -55,7 +69,6 @@ export function useDashboardCards(): CardResult[] {
             formatted = String(rawValue);
           }
 
-          // Resolve change
           let change: number | null = null;
           if (card.changeKey) {
             const rawChange = resolveKey(row, card.changeKey);
@@ -66,19 +79,21 @@ export function useDashboardCards(): CardResult[] {
 
           setResults((prev) => {
             const next = [...prev];
-            next[idx] = { ...next[idx], value: formatted, rawValue: numericValue, rawPrevious: previousValue, change, loading: false };
+            const i = next.findIndex((r) => r.card.id === card.id);
+            if (i >= 0) next[i] = { ...next[i], value: formatted, rawValue: numericValue, rawPrevious: previousValue, change, loading: false };
             return next;
           });
         })
         .catch((err) => {
           setResults((prev) => {
             const next = [...prev];
-            next[idx] = { ...next[idx], loading: false, error: err instanceof Error ? err.message : "Failed" };
+            const i = next.findIndex((r) => r.card.id === card.id);
+            if (i >= 0) next[i] = { ...next[i], loading: false, error: err instanceof Error ? err.message : "Failed" };
             return next;
           });
         });
     });
-  }, []);
+  }, [enabledCards]);
 
   return results;
 }

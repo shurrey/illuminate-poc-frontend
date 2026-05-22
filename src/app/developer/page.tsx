@@ -5,8 +5,11 @@ import { useDictionary } from "@/hooks/useDictionary";
 import { DomainSidebar } from "@/components/schema/DomainSidebar";
 import { EntityGrid } from "@/components/schema/EntityGrid";
 import { EntityDetail } from "@/components/schema/EntityDetail";
+import { ErdDiagram } from "@/components/schema/ErdDiagram";
 import { SchemaSearch } from "@/components/schema/SchemaSearch";
-import { BookOpen, Loader2 } from "lucide-react";
+import { BookOpen, Loader2, LayoutGrid, GitFork, Network } from "lucide-react";
+
+type ViewMode = "tables" | "erd" | "erd-all";
 
 export default function DeveloperPage() {
   const {
@@ -17,8 +20,8 @@ export default function DeveloperPage() {
 
   const [activeSchema, setActiveSchema] = useState<string | null>(null);
   const [activeTable, setActiveTable] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("tables");
 
-  // Auto-select first schema once loaded
   const schemas = getSchemas();
   const effectiveSchema = activeSchema || schemas[0] || null;
 
@@ -29,11 +32,13 @@ export default function DeveloperPage() {
 
   const handleSelectTable = useCallback((table: string) => {
     setActiveTable(table);
+    setViewMode("tables");
   }, []);
 
   const handleNavigateFromSearch = useCallback((schema: string, table: string) => {
     setActiveSchema(schema);
     setActiveTable(table);
+    setViewMode("tables");
   }, []);
 
   const handleNavigateRelationship = useCallback((schema: string, table: string) => {
@@ -84,6 +89,33 @@ export default function DeveloperPage() {
             onSelectTable={handleNavigateFromSearch}
           />
         </div>
+        {/* View toggle */}
+        <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setViewMode("tables")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              viewMode === "tables" ? "bg-white text-[#0066FF] shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <LayoutGrid size={13} /> Tables
+          </button>
+          <button
+            onClick={() => { setViewMode("erd"); setActiveTable(null); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              viewMode === "erd" ? "bg-white text-[#0066FF] shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <GitFork size={13} /> ERD
+          </button>
+          <button
+            onClick={() => { setViewMode("erd-all"); setActiveTable(null); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              viewMode === "erd-all" ? "bg-white text-[#0066FF] shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <Network size={13} /> All
+          </button>
+        </div>
       </div>
 
       {/* Main content */}
@@ -94,7 +126,7 @@ export default function DeveloperPage() {
           activeSchema={effectiveSchema}
           onSelect={handleSelectSchema}
         />
-        {effectiveSchema && currentSchema && (
+        {effectiveSchema && currentSchema && viewMode === "tables" && (
           <EntityGrid
             schemaId={effectiveSchema}
             schema={currentSchema}
@@ -103,10 +135,30 @@ export default function DeveloperPage() {
             onSelect={handleSelectTable}
           />
         )}
+        {effectiveSchema && currentSchema && viewMode === "erd" && (
+          <div className="flex-1 overflow-hidden">
+            <ErdDiagram
+              schemaId={effectiveSchema}
+              schema={currentSchema}
+              relationships={relationships}
+            />
+          </div>
+        )}
+        {viewMode === "erd-all" && (
+          <div className="flex-1 overflow-hidden">
+            <ErdDiagram
+              schemaId="all"
+              schema={{ displayName: "All", tables: {} }}
+              relationships={relationships}
+              allSchemas={catalog}
+              showCrossSchema
+            />
+          </div>
+        )}
       </div>
 
       {/* Detail panel */}
-      {activeTable && effectiveSchema && currentSchema && (
+      {activeTable && effectiveSchema && currentSchema && viewMode === "tables" && (
         <EntityDetail
           schemaId={effectiveSchema}
           tableName={activeTable}

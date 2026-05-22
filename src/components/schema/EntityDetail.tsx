@@ -83,7 +83,7 @@ export function EntityDetail({
           {activeTab === "schema" ? (
             <SchemaTab columns={columns} relationships={uniqueRels} schemaId={schemaId} tableName={tableName} onNavigate={onNavigate} />
           ) : (
-            <DataTab preview={preview} loading={previewLoading} schemaId={schemaId} tableName={tableName} />
+            <DataTab preview={preview} loading={previewLoading} schemaId={schemaId} tableName={tableName} columnMeta={table.columns} />
           )}
         </div>
       </div>
@@ -168,12 +168,13 @@ function SchemaTab({
 }
 
 function DataTab({
-  preview, loading, schemaId, tableName,
+  preview, loading, schemaId, tableName, columnMeta,
 }: {
   preview: PreviewResponse | null;
   loading: boolean;
   schemaId: string;
   tableName: string;
+  columnMeta: Record<string, { description: string; dataType: string; nullable: boolean }>;
 }) {
   const [popover, setPopover] = useState<{ value: string; column: string; rect: DOMRect } | null>(null);
 
@@ -209,9 +210,19 @@ function DataTab({
         <table className="min-w-full divide-y divide-gray-200 text-xs">
           <thead className="bg-gray-50 sticky top-0">
             <tr>
-              {preview.columns.map((col) => (
-                <th key={col} className="px-3 py-2 text-left font-medium text-gray-500 uppercase whitespace-nowrap">{col}</th>
-              ))}
+              {preview.columns.map((col) => {
+                const meta = columnMeta[col];
+                const tip = meta ? `${col} (${meta.dataType})\n${meta.description}` : col;
+                return (
+                  <th
+                    key={col}
+                    title={tip}
+                    className="px-3 py-2 text-left font-medium text-gray-500 uppercase whitespace-nowrap cursor-help border-b-2 border-transparent hover:border-[#0066FF]/30 hover:text-[#0066FF] transition-colors"
+                  >
+                    {col}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">

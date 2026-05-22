@@ -4,8 +4,8 @@ import { authService } from "./authService";
 
 const API_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
 
-function getHeaders(): Record<string, string> {
-  const token = authService.getToken();
+async function getHeaders(): Promise<Record<string, string>> {
+  const token = await authService.getValidToken();
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -79,19 +79,19 @@ export interface Relationship {
 // ── API calls ──────────────────────────────────────────
 
 export async function fetchSubmodels(): Promise<Submodel[]> {
-  const resp = await fetch(`${API_URL}/api/v1/dictionary/submodels`, { headers: getHeaders() });
+  const resp = await fetch(`${API_URL}/api/v1/dictionary/submodels`, { headers: await getHeaders() });
   if (!resp.ok) throw new Error(`submodels: ${resp.status}`);
   return resp.json();
 }
 
 export async function fetchDefinitions(): Promise<ColumnDefinition[]> {
-  const resp = await fetch(`${API_URL}/api/v1/dictionary/definitions`, { headers: getHeaders() });
+  const resp = await fetch(`${API_URL}/api/v1/dictionary/definitions`, { headers: await getHeaders() });
   if (!resp.ok) throw new Error(`definitions: ${resp.status}`);
   return resp.json();
 }
 
 export async function fetchErd(): Promise<ErdRelationship[]> {
-  const resp = await fetch(`${API_URL}/api/v1/dictionary/erd`, { headers: getHeaders() });
+  const resp = await fetch(`${API_URL}/api/v1/dictionary/erd`, { headers: await getHeaders() });
   if (!resp.ok) throw new Error(`erd: ${resp.status}`);
   const data = await resp.json();
   // Flatten: { schemas: ErdSchema[] } → ErdRelationship[]
@@ -112,7 +112,7 @@ export async function fetchErd(): Promise<ErdRelationship[]> {
 export async function fetchPreview(schema: string, table: string, limit = 20): Promise<PreviewResponse> {
   const resp = await fetch(
     `${API_URL}/api/v1/dictionary/preview?schema=${encodeURIComponent(schema)}&table=${encodeURIComponent(table)}&limit=${limit}`,
-    { headers: getHeaders() }
+    { headers: await getHeaders() }
   );
   if (!resp.ok) throw new Error(`preview: ${resp.status}`);
   return resp.json();

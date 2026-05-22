@@ -8,6 +8,7 @@ import { ChartRenderer } from "./ChartRenderer";
 import { DataTable } from "./DataTable";
 import { ExportButton } from "./ExportButton";
 import { SqlModal } from "./SqlModal";
+import { ParameterizedQuery } from "./ParameterizedQuery";
 import { Copy, Check, Brain, ChevronDown, Database, Wrench, AlertCircle } from "lucide-react";
 
 function extractText(children: React.ReactNode): string {
@@ -124,6 +125,8 @@ export function MessageBubble({ message }: { message: Message }) {
   const text = message.parts.filter((p) => p.type === "text").map((p) => p.content as string).join("\n");
   const displayArtifacts = message.artifacts?.filter((a) => a.type !== "sql") || [];
   const sqlArtifacts = message.artifacts?.filter((a) => a.type === "sql") || [];
+  const parameterizedSql = sqlArtifacts.filter((a) => a.parameters && a.parameters.length > 0);
+  const plainSql = sqlArtifacts.filter((a) => !a.parameters || a.parameters.length === 0);
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -161,16 +164,27 @@ export function MessageBubble({ message }: { message: Message }) {
           </div>
         )}
 
-        {sqlArtifacts.length > 0 && (
+        {/* Parameterized SQL — inline form */}
+        {parameterizedSql.map((a) => (
+          <ParameterizedQuery
+            key={a.id}
+            sql={a.data as string}
+            parameters={a.parameters!}
+            title={a.title}
+          />
+        ))}
+
+        {/* Plain SQL — badge to open modal */}
+        {plainSql.length > 0 && (
           <div className="mt-3">
             <button onClick={() => setSqlOpen(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#0066FF] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-full transition-colors">
               <Database size={13} />
-              View SQL{sqlArtifacts.length > 1 ? ` (${sqlArtifacts.length} queries)` : ""}
+              View SQL{plainSql.length > 1 ? ` (${plainSql.length} queries)` : ""}
             </button>
           </div>
         )}
 
-        {sqlOpen && sqlArtifacts.length > 0 && <SqlModal artifacts={sqlArtifacts} onClose={() => setSqlOpen(false)} />}
+        {sqlOpen && plainSql.length > 0 && <SqlModal artifacts={plainSql} onClose={() => setSqlOpen(false)} />}
 
         <div className={`text-xs mt-2 ${isUser ? "text-blue-200" : "text-gray-400"}`}>{formatTimestamp(message.timestamp)}</div>
 

@@ -3,13 +3,15 @@ export interface DashboardCard {
   label: string;
   description: string;
   longDescription: string;
-  prompt: string;           // pre-filled prompt for Ask Illuminate
+  prompt: string;
   query: string;
   valueKey: string;
   changeKey?: string;
   format: "number" | "percent" | "grade";
   invertTrend?: boolean;
   reportLink?: string;
+  isBuiltIn?: boolean;      // true for default cards, false for user-created
+  enabled?: boolean;         // whether the card is visible on the dashboard
 }
 
 export const dashboardCards: DashboardCard[] = [

@@ -28,8 +28,8 @@ function LoginPage({ onLogin, error, loading }: {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f5f6f8] px-4">
-      <div className="max-w-sm w-full">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f5f6f8]">
+      <div className="max-w-sm w-full px-4">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
             <div
@@ -122,21 +122,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
-  if (isLoading && !isAuthenticated) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#f5f6f8]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0066FF]" />
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={login} error={error} loading={isLoading} />;
-  }
-
   return (
     <AuthContext.Provider value={{ isAuthenticated, user, login, signOut, isLoading, error }}>
+      {/* Always render children so the router stays mounted and knows the URL */}
       {children}
+
+      {/* Overlay login/loading on top when not authenticated */}
+      {isLoading && !isAuthenticated && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f5f6f8]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0066FF]" />
+        </div>
+      )}
+      {!isLoading && !isAuthenticated && (
+        <LoginPage onLogin={login} error={error} loading={isLoading} />
+      )}
     </AuthContext.Provider>
   );
 }
