@@ -5,8 +5,10 @@ import {
   getSnowflakeConfig, updateSnowflakeConfig,
   type SnowflakeConfig, type SnowflakeConfigUpdate,
 } from "@/services/configApi";
+import Link from "next/link";
 import {
   Settings, User, Bell, Shield, Globe, Database,
+  Layers,
   Copy, Check, Download, Eye, EyeOff, Pencil, Save,
   Loader2, ChevronDown, ChevronUp, X,
 } from "lucide-react";
@@ -396,6 +398,28 @@ export default function SettingsPage() {
             </div>
           );
         })}
+
+        {/* Metric Definitions — clickable card linking to the overlay editor */}
+        <Link
+          href="/admin/definitions"
+          className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-lg hover:border-[#0066FF]/30 transition-all cursor-pointer group block"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0 group-hover:bg-[#0066FF]/10 transition-colors">
+              <Layers size={20} className="text-gray-500 group-hover:text-[#0066FF] transition-colors" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 group-hover:text-[#0066FF] transition-colors">
+                Metric Definitions
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Override Blackboard&apos;s canonical metric definitions with
+                your institution&apos;s own — retention windows, FTE divisor,
+                completion-rate filters. Edits go live immediately.
+              </p>
+            </div>
+          </div>
+        </Link>
 
         <SnowflakeConfigPanel />
       </div>
