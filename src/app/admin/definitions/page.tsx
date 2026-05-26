@@ -130,8 +130,8 @@ export default function MetricDefinitionsPage() {
         )}
 
         {!loading && !loadError && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: metric list */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* Left: metric list — scrolls with the page */}
             <div className="lg:col-span-1 space-y-2">
               {metrics.map((m) => (
                 <button
@@ -161,8 +161,9 @@ export default function MetricDefinitionsPage() {
               ))}
             </div>
 
-            {/* Right: detail / edit panel */}
-            <div className="lg:col-span-2">
+            {/* Right: detail / edit panel — sticky so you can read it while
+                browsing the list. Internal scroll for long SQL bodies. */}
+            <div className="lg:col-span-2 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
               {!selected && (
                 <div className="bg-white border border-gray-200 rounded p-12 text-center text-gray-500">
                   Pick a metric from the left to see its definition or edit your overlay.
