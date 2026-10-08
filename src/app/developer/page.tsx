@@ -7,9 +7,11 @@ import { EntityGrid } from "@/components/schema/EntityGrid";
 import { EntityDetail } from "@/components/schema/EntityDetail";
 import { ErdDiagram } from "@/components/schema/ErdDiagram";
 import { SchemaSearch } from "@/components/schema/SchemaSearch";
-import { BookOpen, Loader2, LayoutGrid, GitFork, Network } from "lucide-react";
+import { SemanticLayerView } from "@/components/semantic/SemanticLayerView";
+import { useAuth } from "@/context/AuthContext";
+import { BookOpen, Loader2, LayoutGrid, GitFork, Network, Layers } from "lucide-react";
 
-type ViewMode = "tables" | "erd" | "erd-all";
+type ViewMode = "tables" | "erd" | "erd-all" | "semantic";
 
 export default function DeveloperPage() {
   const {
@@ -17,6 +19,7 @@ export default function DeveloperPage() {
     getSchemas, getSchema, getRelationships, searchCatalog,
     loadPreview, getPreview, isPreviewLoading,
   } = useDictionary();
+  const { isAdmin } = useAuth();
 
   const [activeSchema, setActiveSchema] = useState<string | null>(null);
   const [activeTable, setActiveTable] = useState<string | null>(null);
@@ -115,10 +118,19 @@ export default function DeveloperPage() {
           >
             <Network size={13} /> All
           </button>
+          <button
+            onClick={() => { setViewMode("semantic"); setActiveTable(null); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              viewMode === "semantic" ? "bg-white text-[#0066FF] shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <Layers size={13} /> Semantic layer
+          </button>
         </div>
       </div>
 
       {/* Main content */}
+      {viewMode === "semantic" ? <SemanticLayerView /> : (
       <div className="flex flex-1 overflow-hidden">
         <DomainSidebar
           schemas={schemas}
@@ -156,6 +168,7 @@ export default function DeveloperPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* Detail panel */}
       {activeTable && effectiveSchema && currentSchema && viewMode === "tables" && (
@@ -167,6 +180,7 @@ export default function DeveloperPage() {
           preview={getPreview(effectiveSchema, activeTable)}
           previewLoading={isPreviewLoading(effectiveSchema, activeTable)}
           onLoadPreview={handleLoadPreview}
+          canPreview={isAdmin}
           onClose={() => setActiveTable(null)}
           onNavigate={handleNavigateRelationship}
         />

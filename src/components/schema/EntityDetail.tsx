@@ -14,13 +14,15 @@ interface EntityDetailProps {
   preview: PreviewResponse | null;
   previewLoading: boolean;
   onLoadPreview: () => void;
+  /** Table previews return raw rows, so only administrators get the Data Preview tab. */
+  canPreview: boolean;
   onClose: () => void;
   onNavigate: (schema: string, table: string) => void;
 }
 
 export function EntityDetail({
   schemaId, tableName, schema, relationships, preview, previewLoading,
-  onLoadPreview, onClose, onNavigate,
+  onLoadPreview, canPreview, onClose, onNavigate,
 }: EntityDetailProps) {
   const [activeTab, setActiveTab] = useState<"schema" | "data">("schema");
   const table = schema.tables[tableName];
@@ -65,7 +67,7 @@ export function EntityDetail({
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 px-6 flex-shrink-0">
-          {(["schema", "data"] as const).map((tab) => (
+          {(canPreview ? (["schema", "data"] as const) : (["schema"] as const)).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
