@@ -8,8 +8,8 @@ import { ChartRenderer } from "./ChartRenderer";
 import { DataTable } from "./DataTable";
 import { ExportButton } from "./ExportButton";
 import { SqlModal } from "./SqlModal";
-import { ParameterizedQuery } from "./ParameterizedQuery";
-import { Copy, Check, Brain, ChevronDown, Database, Wrench, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Copy, Check, Brain, ChevronDown, Database, Wrench, AlertCircle, AlertTriangle, LayoutDashboard, ShieldCheck } from "lucide-react";
 
 function extractText(children: React.ReactNode): string {
   if (typeof children === "string") return children;
@@ -73,6 +73,33 @@ function InlineThinking({ steps }: { steps: ThinkingStep[] }) {
   );
 }
 
+/** Where a result came from: the governed definitions behind it, or why it is ungoverned. */
+function ProvenanceBar({ artifact }: { artifact: Artifact }) {
+  const p = artifact.provenance;
+  if (!p) return null;
+  if (!p.governed) {
+    return (
+      <div className="flex items-start gap-1.5 px-3 py-1.5 bg-amber-50 border-t border-amber-100 text-[11px] text-amber-800">
+        <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
+        <span><strong>Ungoverned</strong>{p.reason ? `: ${p.reason}` : ""}</span>
+      </div>
+    );
+  }
+  const refs = [...(p.metrics ?? []), ...(p.measures ?? [])];
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 bg-gray-50 border-t border-gray-100 text-[11px]">
+      <ShieldCheck size={12} className="text-emerald-600" />
+      {refs.map((r) => <span key={r} className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono">{r}</span>)}
+      {artifact.query && (
+        <Link href={`/cards/new?contract=${encodeURIComponent(JSON.stringify(artifact.query))}&name=${encodeURIComponent(artifact.title ?? "")}`}
+          className="ml-auto flex items-center gap-1 text-[#0066FF] hover:underline">
+          <LayoutDashboard size={12} /> Pin as card
+        </Link>
+      )}
+    </div>
+  );
+}
+
 function ArtifactRenderer({ artifact }: { artifact: Artifact }) {
   switch (artifact.type) {
     case "table":
@@ -80,6 +107,7 @@ function ArtifactRenderer({ artifact }: { artifact: Artifact }) {
         <div className="bg-white rounded-lg overflow-hidden shadow-sm">
           {artifact.title && <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 font-medium text-sm text-gray-700">{artifact.title}</div>}
           <DataTable data={artifact.data as { rows: Record<string, unknown>[]; columns: string[] }} />
+          <ProvenanceBar artifact={artifact} />
         </div>
       );
     case "chart":
@@ -87,6 +115,7 @@ function ArtifactRenderer({ artifact }: { artifact: Artifact }) {
         <div className="bg-white rounded-lg overflow-hidden shadow-sm">
           {artifact.title && <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 font-medium text-sm text-gray-700">{artifact.title}</div>}
           <div className="p-3"><ChartRenderer config={artifact.data as ChartConfig} /></div>
+          <ProvenanceBar artifact={artifact} />
         </div>
       );
     case "text":
@@ -124,9 +153,7 @@ export function MessageBubble({ message }: { message: Message }) {
 
   const text = message.parts.filter((p) => p.type === "text").map((p) => p.content as string).join("\n");
   const displayArtifacts = message.artifacts?.filter((a) => a.type !== "sql") || [];
-  const sqlArtifacts = message.artifacts?.filter((a) => a.type === "sql") || [];
-  const parameterizedSql = sqlArtifacts.filter((a) => a.parameters && a.parameters.length > 0);
-  const plainSql = sqlArtifacts.filter((a) => !a.parameters || a.parameters.length === 0);
+  const plainSql = message.artifacts?.filter((a) => a.type === "sql") || [];
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -163,16 +190,6 @@ export function MessageBubble({ message }: { message: Message }) {
             )}
           </div>
         )}
-
-        {/* Parameterized SQL — inline form */}
-        {parameterizedSql.map((a) => (
-          <ParameterizedQuery
-            key={a.id}
-            sql={a.data as string}
-            parameters={a.parameters!}
-            title={a.title}
-          />
-        ))}
 
         {/* Plain SQL — badge to open modal */}
         {plainSql.length > 0 && (
