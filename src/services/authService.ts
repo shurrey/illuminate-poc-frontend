@@ -10,6 +10,8 @@ interface AuthState {
 }
 
 const STORAGE_KEY = "illuminate_auth";
+/** Cognito group whose members may edit metric overlays; the API enforces the same group. */
+export const ADMIN_GROUP = "illuminate-admins";
 const SESSION_MAX_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 /** Decode a JWT payload without verification (just to read exp). */
@@ -142,6 +144,13 @@ class AuthService {
         newPasswordRequired: () => reject(new Error("Password change required. Please contact administrator.")),
       });
     });
+  }
+
+  /** Read from the current ID token's cognito:groups claim, so it can't go stale in storage. */
+  isAdmin(): boolean {
+    const payload = this.state.token ? decodeJwtPayload(this.state.token) : null;
+    const groups = payload?.["cognito:groups"];
+    return Array.isArray(groups) && groups.includes(ADMIN_GROUP);
   }
 
   isAuthenticated(): boolean {
