@@ -55,7 +55,7 @@ export function InfoModal({ title, description, onClose }: { title: string; desc
   return (
     <ModalShell title={`About — ${title}`} onClose={onClose}>
       <div className="prose prose-sm max-w-none">
-        <p className="text-sm text-gray-700 leading-relaxed">{description}</p>
+        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{description}</p>
       </div>
     </ModalShell>
   );
