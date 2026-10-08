@@ -6,6 +6,7 @@ import { authService } from "@/services/authService";
 interface AuthContextType {
   isAuthenticated: boolean;
   user: { id: string; name: string; email?: string } | null;
+  isAdmin: boolean;
   login: (username: string, password: string) => Promise<void>;
   signOut: () => void;
   isLoading: boolean;
@@ -93,12 +94,14 @@ function LoginPage({ onLogin, error, loading }: {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<AuthContextType["user"]>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsAuthenticated(authService.isAuthenticated());
     setUser(authService.getUser());
+    setIsAdmin(authService.isAdmin());
     setIsLoading(false);
   }, []);
 
@@ -108,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const u = await authService.login(username, password);
       setUser(u);
+      setIsAdmin(authService.isAdmin());
       setIsAuthenticated(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
@@ -120,10 +124,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authService.logout();
     setIsAuthenticated(false);
     setUser(null);
+    setIsAdmin(false);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, signOut, isLoading, error }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, isAdmin, login, signOut, isLoading, error }}>
       {/* Always render children so the router stays mounted and knows the URL */}
       {children}
 

@@ -20,12 +20,14 @@ import {
 } from "lucide-react";
 import { SnowflakeLogo } from "./SnowflakeLogo";
 import { BrandLogo } from "./BrandLogo";
+import { useAuth } from "@/context/AuthContext";
 
 interface NavSection {
   label: string;
   href: string;
   icon: React.ElementType;
   children?: { label: string; href: string }[];
+  adminOnly?: boolean;
   external?: boolean;
 }
 
@@ -46,7 +48,7 @@ const navSections: NavSection[] = [
     ],
   },
   { label: "Data Dictionary", href: "/developer", icon: BookOpen },
-  { label: "Metric Definitions", href: "/admin/definitions", icon: Layers },
+  { label: "Metric Definitions", href: "/admin/definitions", icon: Layers, adminOnly: true },
   { label: "Settings", href: "/settings", icon: Settings },
   {
     label: "Privacy & Security",
@@ -69,6 +71,7 @@ export function NavDrawer({
   onClose: () => void;
 }) {
   const pathname = usePathname();
+  const { isAdmin } = useAuth();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -127,7 +130,7 @@ export function NavDrawer({
 
         {/* Nav Items */}
         <nav className="flex-1 overflow-y-auto py-3">
-          {navSections.map((section) => {
+          {navSections.filter((section) => isAdmin || !section.adminOnly).map((section) => {
             const Icon = section.icon;
             const active = isActive(section.href);
             const isExpanded = expanded[section.label];

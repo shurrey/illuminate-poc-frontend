@@ -8,8 +8,25 @@ import {
 import {
   Layers, Loader2, Pencil, Save, RotateCcw, Trash2, AlertTriangle, CheckCircle2, X,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function MetricDefinitionsPage() {
+  const { isAdmin } = useAuth();
+  if (!isAdmin) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center">
+        <Layers size={28} className="mx-auto text-gray-400 mb-3" />
+        <h1 className="text-xl font-semibold text-gray-900">Metric Definitions</h1>
+        <p className="text-gray-500 mt-2">
+          Editing metric definitions requires administrator access. Ask your Illuminate administrator to add you.
+        </p>
+      </div>
+    );
+  }
+  return <MetricDefinitionsEditor />;
+}
+
+function MetricDefinitionsEditor() {
   const [tenantId, setTenantId] = useState<string>("");
   const [metrics, setMetrics] = useState<MetricSummary[]>([]);
   const [loading, setLoading] = useState(true);
