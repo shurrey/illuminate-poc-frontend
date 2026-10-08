@@ -18,11 +18,11 @@ export function MyQueries({ onLoadQuery }: MyQueriesProps) {
       !search ||
       q.name.toLowerCase().includes(search.toLowerCase()) ||
       q.description.toLowerCase().includes(search.toLowerCase()) ||
-      q.sql.toLowerCase().includes(search.toLowerCase())
+      q.prompt.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleCopy = async (sql: string) => {
-    await navigator.clipboard.writeText(sql);
+  const handleCopy = async (q: SavedQuery) => {
+    await navigator.clipboard.writeText(JSON.stringify(q.contract, null, 2));
   };
 
   const formatDate = (iso: string) => {
@@ -36,7 +36,7 @@ export function MyQueries({ onLoadQuery }: MyQueriesProps) {
         <FileCode size={40} className="text-gray-300 mb-4" />
         <h3 className="text-lg font-semibold text-gray-900 mb-2">No saved queries yet</h3>
         <p className="text-sm text-gray-500 max-w-md">
-          Create a new query from a natural language prompt or import an existing SQL query to get started.
+          Build a query from the catalog, ask a question, or import an existing SQL query to get started.
         </p>
       </div>
     );
@@ -81,9 +81,9 @@ export function MyQueries({ onLoadQuery }: MyQueriesProps) {
                   <Play size={14} />
                 </button>
                 <button
-                  onClick={() => handleCopy(q.sql)}
+                  onClick={() => handleCopy(q)}
                   className="p-1.5 text-gray-400 hover:text-[#0066FF] hover:bg-gray-50 rounded transition-colors"
-                  title="Copy SQL"
+                  title="Copy query contract"
                 >
                   <Copy size={14} />
                 </button>

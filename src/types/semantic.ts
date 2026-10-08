@@ -70,6 +70,8 @@ export interface CatalogDataset {
   dimensions: CatalogDimension[];
   measures: CatalogMeasure[];
   filters: { name: string; description: string }[];
+  /** Datasets whose dimensions this dataset's measures can be broken down by. */
+  joins: string[];
 }
 
 export interface CatalogMetric {

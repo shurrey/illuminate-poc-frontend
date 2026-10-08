@@ -1,344 +1,160 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useQueryGeneration } from "@/hooks/useQueryGeneration";
-import { useQueryExecution } from "@/hooks/useQueryExecution";
+import { AlertTriangle, LayoutDashboard, Loader2, Play, RotateCcw, Save, Send, ShieldCheck, Sparkles } from "lucide-react";
 import { useQueryBuilder } from "@/context/QueryBuilderContext";
+import { useSemanticCatalog } from "@/hooks/useSemanticCatalog";
+import { useSemanticGeneration } from "@/hooks/useSemanticGeneration";
+import { querySemantic } from "@/services/semanticApi";
 import { DataTable } from "@/components/chat/DataTable";
-import { ThinkingBubble } from "@/components/chat/ThinkingBubble";
+import { ContractEditor } from "./ContractEditor";
 import { SaveQueryDialog } from "./SaveQueryDialog";
-import { format as formatSql } from "sql-formatter";
-import { substituteParams } from "@/utils/sqlParams";
-import Link from "next/link";
-import {
-  Sparkles, Play, Save, Copy, Check, X, Send, Loader2,
-  Pencil, RotateCcw, ChevronDown, ChevronUp, LayoutDashboard,
-} from "lucide-react";
+import type { QueryContract, SemanticResult } from "@/types/semantic";
 
 interface NewQueryProps {
-  initialSql?: string;
+  initialContract?: QueryContract;
   initialPrompt?: string;
   initialName?: string;
   initialDescription?: string;
 }
 
-export function NewQuery({ initialSql, initialPrompt, initialName, initialDescription }: NewQueryProps) {
-  const {
-    generatedSql, generatedParameters, description, isGenerating, error: genError,
-    statusMessage, thinkingSteps, generateSql, refineSql, cancelGeneration, reset,
-  } = useQueryGeneration();
-  const { results, isExecuting, error: execError, runQuery, clearResults } = useQueryExecution();
+const EMPTY: QueryContract = { metrics: [], limit: 100 };
+
+export function NewQuery({ initialContract, initialPrompt, initialName, initialDescription }: NewQueryProps) {
+  const { catalog, error: catalogError } = useSemanticCatalog();
+  const gen = useSemanticGeneration();
   const { saveQuery } = useQueryBuilder();
 
-  const [prompt, setPrompt] = useState(initialPrompt || "");
-  const [sql, setSql] = useState(initialSql || "");
-  const [isEditingSql, setIsEditingSql] = useState(false);
-  const [refineInput, setRefineInput] = useState("");
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [showThinking, setShowThinking] = useState(true);
-  const [showSql, setShowSql] = useState(true);
-  const [paramValues, setParamValues] = useState<Record<string, string>>({});
-  const promptRef = useRef<HTMLTextAreaElement>(null);
-
-  // Sync generated SQL and parameters
-  useEffect(() => {
-    if (generatedSql) setSql(generatedSql);
-  }, [generatedSql]);
+  const [prompt, setPrompt] = useState(initialPrompt ?? "");
+  const [refinement, setRefinement] = useState("");
+  const [contract, setContract] = useState<QueryContract>(initialContract ?? EMPTY);
+  const [editorKey, setEditorKey] = useState(0);
+  const [result, setResult] = useState<SemanticResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [showSave, setShowSave] = useState(false);
 
   useEffect(() => {
-    if (generatedParameters.length > 0) {
-      const initial: Record<string, string> = {};
-      generatedParameters.forEach((p) => { initial[p.name] = ""; });
-      setParamValues(initial);
+    if (!gen.result.contract) return;
+    setContract(gen.result.contract);
+    setEditorKey((k) => k + 1);
+    setResult(null);
+  }, [gen.result.contract]);
+
+  const hasSelection = !!(contract.metrics?.length || contract.measures?.length);
+  const ungoverned = gen.result.provenance?.governed === false;
+
+  const run = async () => {
+    setRunning(true);
+    setRunError(null);
+    try {
+      setResult(await querySemantic(contract));
+    } catch (e) {
+      setRunError(e instanceof Error ? e.message : "The query failed");
+    } finally {
+      setRunning(false);
     }
-  }, [generatedParameters]);
-
-  // Auto-resize prompt textarea
-  useEffect(() => {
-    if (promptRef.current) {
-      promptRef.current.style.height = "auto";
-      promptRef.current.style.height = `${Math.min(promptRef.current.scrollHeight, 120)}px`;
-    }
-  }, [prompt]);
-
-  const handleGenerate = () => {
-    if (!prompt.trim() || isGenerating) return;
-    clearResults();
-    generateSql(prompt.trim());
   };
 
-  const hasParams = generatedParameters.length > 0;
-  const allRequiredFilled = !hasParams || generatedParameters
-    .filter((p) => p.required)
-    .every((p) => paramValues[p.name]?.trim());
-
-  const handleRun = () => {
-    if (!sql.trim() || isExecuting || !allRequiredFilled) return;
-    const finalSql = hasParams ? substituteParams(sql.trim(), paramValues) : sql.trim();
-    runQuery(finalSql);
-  };
-
-  const handleRefine = () => {
-    if (!refineInput.trim() || isGenerating) return;
-    clearResults();
-    refineSql(refineInput.trim());
-    setRefineInput("");
-  };
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(sql);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleSave = (name: string, desc: string) => {
-    saveQuery({
-      id: crypto.randomUUID(),
-      name,
-      prompt: prompt.trim(),
-      sql: sql.trim(),
-      description: desc,
-      createdAt: new Date().toISOString(),
-      lastUsedAt: new Date().toISOString(),
-    });
-    setShowSaveDialog(false);
-  };
-
-  const handleReset = () => {
-    reset();
-    setSql("");
+  const reset = () => {
+    gen.reset();
     setPrompt("");
-    setRefineInput("");
-    clearResults();
-    setIsEditingSql(false);
-    promptRef.current?.focus();
+    setContract(EMPTY);
+    setEditorKey((k) => k + 1);
+    setResult(null);
+    setRunError(null);
   };
-
-  const formatted = (() => {
-    try { return formatSql(sql, { language: "snowflake", keywordCase: "upper" }); }
-    catch { return sql; }
-  })();
 
   return (
-    <div className="space-y-4">
-      {/* Prompt input */}
+    <div className="space-y-6">
+      {catalogError && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{catalogError}</div>}
+
       <div className="bg-gradient-to-r from-[#0066FF] to-[#0044cc] rounded-xl p-5 text-white">
-        <div className="flex items-center gap-2 mb-2">
-          <Sparkles size={16} />
-          <h3 className="text-sm font-semibold">Describe what you want to query</h3>
-        </div>
+        <div className="flex items-center gap-2 mb-2"><Sparkles size={16} /><h3 className="text-sm font-semibold">Ask a question, or build the query below</h3></div>
         <div className="relative">
-          <textarea
-            ref={promptRef}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGenerate(); } }}
-            placeholder="e.g. Show me student enrollment by department for the current term, with year-over-year comparison"
-            rows={1}
-            disabled={isGenerating}
-            className="w-full px-4 py-3 pr-12 rounded-lg bg-white text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none disabled:bg-gray-50"
-          />
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || !prompt.trim()}
-            className="absolute right-2 bottom-2 p-2 bg-[#0066FF] hover:bg-[#0052cc] text-white rounded-lg transition-colors disabled:bg-gray-300"
-          >
-            {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2} disabled={gen.isGenerating}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (prompt.trim()) gen.ask(prompt.trim()); } }}
+            placeholder="e.g. Average grade by term for Ultra courses"
+            className="w-full px-4 py-3 pr-12 rounded-lg bg-white text-gray-900 placeholder-gray-400 text-sm focus:outline-none resize-none" />
+          <button onClick={() => prompt.trim() && gen.ask(prompt.trim())} disabled={gen.isGenerating || !prompt.trim()}
+            className="absolute right-2 bottom-2 p-2 bg-[#0066FF] hover:bg-[#0052cc] text-white rounded-lg disabled:bg-gray-300">
+            {gen.isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           </button>
         </div>
-        {isGenerating && (
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-blue-200">{statusMessage || "Generating..."}</span>
-            <button onClick={cancelGeneration} className="text-xs text-blue-200 hover:text-white">Cancel</button>
+        {gen.isGenerating && (
+          <div className="flex items-center justify-between mt-2 text-xs text-blue-200">
+            <span>{gen.status || "Working..."}</span>
+            <button onClick={gen.cancel} className="hover:text-white">Cancel</button>
           </div>
         )}
       </div>
 
-      {/* Thinking bubble */}
-      {thinkingSteps.length > 0 && (
-        <ThinkingBubble steps={thinkingSteps} isExpanded={showThinking} onToggle={() => setShowThinking(!showThinking)} isLoading={isGenerating} />
+      {gen.error && <div className="text-sm text-red-600">{gen.error}</div>}
+      {gen.answer && !gen.isGenerating && (
+        <div className="prose prose-sm max-w-none text-gray-600 bg-gray-50 rounded-lg border border-gray-200 p-4">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{gen.answer}</ReactMarkdown>
+        </div>
       )}
-
-      {/* Generation error */}
-      {genError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{genError}</div>
-      )}
-
-      {/* SQL Panel */}
-      {sql && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50">
-            <button
-              onClick={() => setShowSql(!showSql)}
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-700"
-            >
-              {showSql ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              SQL Query
-            </button>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setIsEditingSql(!isEditingSql)} className="p-1.5 text-gray-400 hover:text-[#0066FF] rounded transition-colors" title="Edit SQL">
-                <Pencil size={13} />
-              </button>
-              <button onClick={handleCopy} className="p-1.5 text-gray-400 hover:text-[#0066FF] rounded transition-colors" title="Copy SQL">
-                {copied ? <Check size={13} /> : <Copy size={13} />}
-              </button>
-            </div>
+      {ungoverned && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 space-y-2">
+          <div className="flex gap-2"><AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+            <span><strong>Ungoverned.</strong> No governed metric answers this, so it can&apos;t be saved or made a card. {gen.result.provenance?.reason}</span>
           </div>
+          {gen.result.table && <DataTable data={gen.result.table} maxRows={20} />}
+        </div>
+      )}
+      {gen.result.contract && (
+        <div className="flex gap-2">
+          <input value={refinement} onChange={(e) => setRefinement(e.target.value)} placeholder="Refine, e.g. only courses that have ended"
+            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0066FF]" />
+          <button onClick={() => { gen.refine(refinement.trim()); setRefinement(""); }} disabled={!refinement.trim() || gen.isGenerating}
+            className="px-3 py-2 text-sm text-[#0066FF] border border-[#0066FF] rounded-lg disabled:opacity-50">Refine</button>
+        </div>
+      )}
 
-          {showSql && (
-            isEditingSql ? (
-              <textarea
-                value={sql}
-                onChange={(e) => setSql(e.target.value)}
-                rows={12}
-                className="w-full p-4 text-sm font-mono bg-gray-800 text-gray-100 focus:outline-none resize-none"
-              />
-            ) : (
-              <pre className="p-4 bg-gray-800 text-gray-100 overflow-x-auto text-sm font-mono leading-relaxed whitespace-pre-wrap max-h-80">
-                <code>{formatted}</code>
-              </pre>
-            )
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        {catalog ? <ContractEditor key={editorKey} catalog={catalog} contract={contract} onChange={(c) => { setContract(c); setResult(null); }} />
+          : <Loader2 size={18} className="animate-spin text-gray-300" />}
+        <div className="flex items-center gap-2 mt-5 pt-4 border-t border-gray-100">
+          <button onClick={run} disabled={!hasSelection || running}
+            className="flex items-center gap-1.5 px-4 py-2 bg-[#0066FF] hover:bg-[#0052cc] text-white text-sm font-medium rounded-lg disabled:opacity-50">
+            {running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {running ? "Running..." : "Run"}
+          </button>
+          <button onClick={() => setShowSave(true)} disabled={!hasSelection}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg disabled:opacity-50"><Save size={14} /> Save</button>
+          {hasSelection && (
+            <Link href={`/cards/new?contract=${encodeURIComponent(JSON.stringify(contract))}&name=${encodeURIComponent(prompt.slice(0, 60))}`}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg"><LayoutDashboard size={14} /> Create card</Link>
           )}
-
-          {/* Parameter form */}
-          {hasParams && (
-            <div className="px-4 py-3 border-t border-gray-100 space-y-2.5">
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Parameters</div>
-              {generatedParameters.map((param) => (
-                <div key={param.name}>
-                  <label className="flex items-center gap-1 text-xs font-medium text-gray-700 mb-1">
-                    {param.label}
-                    {param.required && <span className="text-red-400">*</span>}
-                  </label>
-                  {param.type === "select" ? (
-                    <select
-                      value={paramValues[param.name] || ""}
-                      onChange={(e) => setParamValues((prev) => ({ ...prev, [param.name]: e.target.value }))}
-                      className="w-full px-2.5 py-1.5 rounded border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0066FF] focus:border-transparent"
-                    >
-                      <option value="">{param.placeholder || "Select..."}</option>
-                      {param.options?.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  ) : param.type === "date" ? (
-                    <input
-                      type="date"
-                      value={paramValues[param.name] || ""}
-                      onChange={(e) => setParamValues((prev) => ({ ...prev, [param.name]: e.target.value }))}
-                      className="w-full px-2.5 py-1.5 rounded border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0066FF] focus:border-transparent"
-                    />
-                  ) : (
-                    <input
-                      type={param.type === "number" ? "number" : "text"}
-                      value={paramValues[param.name] || ""}
-                      onChange={(e) => setParamValues((prev) => ({ ...prev, [param.name]: e.target.value }))}
-                      placeholder={param.placeholder}
-                      className="w-full px-2.5 py-1.5 rounded border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0066FF] focus:border-transparent"
-                    />
-                  )}
-                  {param.description && (
-                    <p className="text-[11px] text-gray-400 mt-0.5">{param.description}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Action bar */}
-          <div className="flex items-center gap-2 px-4 py-3 border-t border-gray-100">
-            <button
-              onClick={handleRun}
-              disabled={isExecuting || !sql.trim() || !allRequiredFilled}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#0066FF] hover:bg-[#0052cc] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-            >
-              {isExecuting ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-              {isExecuting ? "Running..." : "Run Query"}
-            </button>
-            <button
-              onClick={() => setShowSaveDialog(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:border-[#0066FF]/30 hover:text-[#0066FF] transition-colors"
-            >
-              <Save size={14} /> Save
-            </button>
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-400 hover:text-gray-600 rounded-lg transition-colors ml-auto"
-            >
-              <RotateCcw size={14} /> New Query
-            </button>
-          </div>
+          <button onClick={reset} className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-400 hover:text-gray-600 ml-auto"><RotateCcw size={14} /> Start over</button>
         </div>
-      )}
+      </div>
 
-      {/* Execution error */}
-      {execError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{execError}</div>
-      )}
-
-      {/* Results */}
-      {results && (
+      {runError && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{runError}</div>}
+      {result && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">Results ({results.rows.length} rows)</span>
-            <Link
-              href={`/cards/new/?sql=${encodeURIComponent(sql)}&name=${encodeURIComponent(prompt.slice(0, 60))}`}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-[#0066FF] hover:bg-blue-50 rounded transition-colors"
-            >
-              <LayoutDashboard size={12} /> Create Card
-            </Link>
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-sm text-gray-700">
+            <ShieldCheck size={14} className="text-emerald-600" /> {result.rows.length} rows from {[...(result.provenance.metrics ?? []), ...(result.provenance.measures ?? [])].join(", ")}
           </div>
-          <DataTable data={{ columns: results.columns, rows: results.rows }} maxRows={20} />
+          <DataTable data={{ columns: result.columns, rows: result.rows }} maxRows={20} />
+          <details className="px-4 py-3 text-xs text-gray-500 border-t border-gray-100">
+            <summary className="cursor-pointer">Compiled SQL</summary>
+            <pre className="mt-2 p-3 bg-gray-800 text-gray-100 rounded-lg overflow-x-auto max-h-72">{result.sql}</pre>
+          </details>
         </div>
       )}
 
-      {/* Refinement input */}
-      {sql && !isGenerating && (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={refineInput}
-              onChange={(e) => setRefineInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleRefine(); }}
-              placeholder="Refine: add a filter, change grouping, limit results..."
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0066FF] focus:border-transparent pr-10"
-            />
-            <button
-              onClick={handleRefine}
-              disabled={!refineInput.trim() || isGenerating}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-[#0066FF] disabled:text-gray-300 transition-colors"
-            >
-              <Send size={14} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* AI description */}
-      {description && !isGenerating && (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Sparkles size={13} className="text-[#0066FF]" />
-            <span className="text-xs font-semibold text-[#0066FF]">AI Explanation</span>
-          </div>
-          <div className="prose prose-sm max-w-none text-gray-600">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
-          </div>
-        </div>
-      )}
-
-      {/* Save dialog */}
-      {showSaveDialog && (
-        <SaveQueryDialog
-          initialName={initialName || prompt.slice(0, 60) || "Untitled Query"}
-          initialDescription={initialDescription || description || ""}
-          onSave={handleSave}
-          onClose={() => setShowSaveDialog(false)}
-        />
+      {showSave && (
+        <SaveQueryDialog initialName={initialName ?? prompt.slice(0, 60)} initialDescription={initialDescription ?? ""}
+          onClose={() => setShowSave(false)}
+          onSave={(name, description) => {
+            const now = new Date().toISOString();
+            saveQuery({ id: crypto.randomUUID(), name, description, prompt: prompt.trim(), contract, createdAt: now, lastUsedAt: now });
+            setShowSave(false);
+          }} />
       )}
     </div>
   );
