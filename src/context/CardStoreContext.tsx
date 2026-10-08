@@ -16,7 +16,8 @@ interface CardStoreContextType {
 
 const CardStoreContext = createContext<CardStoreContextType | undefined>(undefined);
 
-const STORAGE_KEY = "illuminate-dashboard-cards";
+// v2: cards hold query contracts; v1 cards held SQL and are not migrated.
+const STORAGE_KEY = "illuminate-dashboard-cards-v2";
 
 function seedDefaults(): DashboardCard[] {
   return defaultCards.map((c) => ({ ...c, isBuiltIn: true, enabled: true }));
