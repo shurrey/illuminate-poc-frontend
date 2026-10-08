@@ -33,7 +33,7 @@ export default function QueriesPage() {
             <Database size={20} className="text-[#0066FF]" />
             <h1 className="text-2xl font-bold text-gray-900">Query Builder</h1>
           </div>
-          <p className="text-gray-500">Build, run, and save SQL queries with AI assistance</p>
+          <p className="text-gray-500">Build, run, and save governed queries over the semantic layer</p>
         </div>
       </div>
 
@@ -59,7 +59,7 @@ export default function QueriesPage() {
       {activeTab === "new-query" && (
         <NewQuery
           key={loadedQuery?.id || "new"}
-          initialSql={loadedQuery?.sql}
+          initialContract={loadedQuery?.contract}
           initialPrompt={loadedQuery?.prompt}
           initialName={loadedQuery?.name}
           initialDescription={loadedQuery?.description}

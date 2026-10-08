@@ -13,7 +13,8 @@ interface QueryBuilderContextType {
 
 const QueryBuilderContext = createContext<QueryBuilderContextType | undefined>(undefined);
 
-const STORAGE_KEY = "illuminate-queries";
+// v2: saved queries are contracts; v1 held SQL and is not migrated.
+const STORAGE_KEY = "illuminate-queries-v2";
 
 export function QueryBuilderProvider({ children }: { children: React.ReactNode }) {
   const [queries, setQueries] = useState<SavedQuery[]>([]);
