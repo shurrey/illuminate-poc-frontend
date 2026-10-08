@@ -186,7 +186,8 @@ export function useChat(): UseChatReturn {
             case "complete": {
               const data = (event.data || {}) as AgentResponse;
               const newCtx = data.context_id || data.contextId;
-              if (newCtx && !contextId) setContextId(newCtx);
+              // The server may replace an id it no longer recognises; always follow it.
+              if (newCtx) setContextId(newCtx);
               const finalSteps = [...thinkingStepsRef.current];
               setMessages((prev) => {
                 if (prev.length === 0) return prev;
