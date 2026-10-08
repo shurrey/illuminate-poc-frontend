@@ -1,3 +1,5 @@
+import type { Provenance, QueryContract } from "./semantic";
+
 export type MessageRole = "user" | "assistant" | "system";
 export type ArtifactType = "table" | "chart" | "text" | "error" | "sql";
 export type ChartType = "bar" | "line" | "pie" | "scatter" | "heatmap" | "histogram";
@@ -35,6 +37,10 @@ export interface Artifact {
   title?: string;
   description?: string;
   parameters?: QueryParameter[];
+  /** Set on artifacts from the semantic tools: the contract that produced them (governed only). */
+  query?: QueryContract;
+  sql?: string;
+  provenance?: Provenance;
 }
 
 export interface MessagePart {
