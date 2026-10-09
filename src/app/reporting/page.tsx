@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
+import { listReports } from "@/services/reportsApi";
+import type { ReportSummary } from "@/types/reports";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useUser } from "@/context/UserContext";
 import { mockReports, Report } from "@/data/mockReports";
@@ -14,6 +17,39 @@ const areaLabels: Record<string, string> = {
   "data-qa": "Data Q&A",
   custom: "Custom Reports",
 };
+
+/** Reports defined on the semantic layer, by area; renders nothing until there are some. */
+function StandardReports() {
+  const [reports, setReports] = useState<ReportSummary[]>([]);
+  useEffect(() => {
+    let live = true;
+    listReports().then((r) => live && setReports(r)).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
+  if (reports.length === 0) return null;
+  return (
+    <div className="mb-10 space-y-6">
+      {(["learning", "teaching", "leading"] as const).map((area) => {
+        const inArea = reports.filter((r) => r.area === area);
+        if (inArea.length === 0) return null;
+        return (
+          <div key={area}>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{areaLabels[area]}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {inArea.map((r) => (
+                <Link key={r.id} href={`/reporting/report?id=${encodeURIComponent(r.id)}`}
+                  className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-lg hover:border-[#0066FF]/30 transition-all">
+                  <h3 className="text-base font-semibold text-gray-900 mb-1">{r.title}</h3>
+                  <p className="text-sm text-gray-500 line-clamp-2">{r.description}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function ReportingContent() {
   const searchParams = useSearchParams();
@@ -49,6 +85,8 @@ function ReportingContent() {
           Explore analytics reports available for your role
         </p>
       </div>
+
+      <StandardReports />
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
