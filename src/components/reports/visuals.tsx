@@ -17,12 +17,25 @@ export function formatValue(value: unknown, unit = ""): string {
 
 const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : []);
 
-export function KpiVisual({ result, encode, unit }: { result: RunResult; encode: VisualDef["encode"]; unit?: string }) {
+type Table = Pick<RunResult, "columns" | "rows">;
+
+/** The value, plus a change badge when the row carries change_pct (period_over_period). */
+export function KpiVisual({ result, encode, unit }: { result: Table; encode: VisualDef["encode"]; unit?: string }) {
   const column = String(encode.value ?? result.columns[result.columns.length - 1]);
-  return <p className="text-3xl font-bold text-gray-900">{formatValue(result.rows[0]?.[column], unit)}</p>;
+  const change = result.rows[0]?.change_pct;
+  return (
+    <div className="flex items-baseline gap-3">
+      <p className="text-3xl font-bold text-gray-900">{formatValue(result.rows[0]?.[column], unit)}</p>
+      {typeof change === "number" && (
+        <span className={`text-sm font-medium ${change >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+          {change >= 0 ? "▲" : "▼"} {Math.abs(change).toFixed(1)}%
+        </span>
+      )}
+    </div>
+  );
 }
 
-export function BarVisual({ result, encode }: { result: RunResult; encode: VisualDef["encode"] }) {
+export function BarVisual({ result, encode }: { result: Table; encode: VisualDef["encode"] }) {
   const ys = list(encode.y);
   return (
     <ResponsiveContainer width="100%" height={260}>
@@ -39,7 +52,7 @@ export function BarVisual({ result, encode }: { result: RunResult; encode: Visua
   );
 }
 
-export function LineVisual({ result, encode }: { result: RunResult; encode: VisualDef["encode"] }) {
+export function LineVisual({ result, encode }: { result: Table; encode: VisualDef["encode"] }) {
   const ys = list(encode.y);
   return (
     <ResponsiveContainer width="100%" height={260}>
@@ -55,7 +68,7 @@ export function LineVisual({ result, encode }: { result: RunResult; encode: Visu
   );
 }
 
-export function PieVisual({ result, encode }: { result: RunResult; encode: VisualDef["encode"] }) {
+export function PieVisual({ result, encode }: { result: Table; encode: VisualDef["encode"] }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <PieChart>
@@ -69,7 +82,7 @@ export function PieVisual({ result, encode }: { result: RunResult; encode: Visua
   );
 }
 
-export function TableVisual({ result, encode }: { result: RunResult; encode: VisualDef["encode"] }) {
+export function TableVisual({ result, encode }: { result: Table; encode: VisualDef["encode"] }) {
   const columns = list(encode.columns).filter((c) => result.columns.includes(c));
   return <ResultTable columns={columns.length ? columns : result.columns} rows={result.rows} />;
 }
