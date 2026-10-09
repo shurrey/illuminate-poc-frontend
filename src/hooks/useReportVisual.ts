@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { runReportQuery } from "@/services/reportsApi";
 import { createPool } from "@/reports/pool";
+import { reportResults } from "@/reports/resultCache";
+import { authService } from "@/services/authService";
 import type { FilterValues, RunResponse, VisualDef } from "@/types/reports";
 
 // One pool for the whole page so a report with many visuals doesn't flood the warehouse.
 const pool = createPool(6);
-const cache = new Map<string, Promise<RunResponse>>();
 
 export interface VisualState {
   results: Record<string, RunResponse> | null;
@@ -26,14 +27,15 @@ export function useReportVisual(reportId: string, visual: VisualDef, values: Fil
     if (visual.type === "text") return;
     let live = true;
     const names = Object.keys(visual.queries);
+    const user = authService.getUser()?.id ?? "";
     Promise.all(names.map((q) => {
       const k = `${key}|${q}`;
-      if (!cache.has(k)) {
-        const p = pool(() => runReportQuery(reportId, visual.id, q, values));
-        cache.set(k, p);
-        p.catch(() => cache.delete(k));
+      let p = reportResults.get<RunResponse>(user, k);
+      if (!p) {
+        p = pool(() => runReportQuery(reportId, visual.id, q, values));
+        reportResults.set(user, k, p);
       }
-      return cache.get(k)!;
+      return p;
     }))
       .then((rs) => { if (live) setState({ key, results: Object.fromEntries(names.map((n, i) => [n, rs[i]])), error: null }); })
       .catch((e) => { if (live) setState({ key, results: null, error: e instanceof Error ? e.message : "The query failed" }); });
