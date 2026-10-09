@@ -56,6 +56,8 @@ export interface CatalogDimension {
 export interface CatalogMeasure {
   name: string;
   agg: string;
+  /** The SQL expression aggregated; null for ratios, which name a numerator and denominator. */
+  expr?: string | null;
   numerator?: string | null;
   denominator?: string | null;
   unit: string;
@@ -71,7 +73,7 @@ export interface CatalogDataset {
   domain: string;
   dimensions: CatalogDimension[];
   measures: CatalogMeasure[];
-  filters: { name: string; description: string }[];
+  filters: { name: string; description: string; sql: string }[];
   /** Datasets whose dimensions this dataset's measures can be broken down by. */
   joins: string[];
 }
