@@ -39,14 +39,17 @@ export default function MetricDefinitionsPage() {
 }
 
 function OverlayEditor() {
-  const { catalog, error: catalogError } = useSemanticCatalog();
+  const { catalog, error: catalogError, reload: reloadCatalog } = useSemanticCatalog();
+  const [listError, setListError] = useState<string | null>(null);
   const [overlays, setOverlays] = useState<Record<string, Overlay>>({});
   const [kind, setKind] = useState<Target["kind"]>("metric");
   const [selected, setSelected] = useState<Target | null>(null);
   const [newFilter, setNewFilter] = useState({ datasetId: "", name: "" });
 
   const refresh = useCallback(() => {
-    listOverlays().then((r) => setOverlays(Object.fromEntries(r.overlays.map((o) => [o.target, o])))).catch(() => setOverlays({}));
+    listOverlays()
+      .then((r) => { setOverlays(Object.fromEntries(r.overlays.map((o) => [o.target, o]))); setListError(null); })
+      .catch((e) => setListError(e instanceof Error ? e.message : "Could not load your overrides"));
   }, []);
   useEffect(refresh, [refresh]);
 
@@ -57,6 +60,7 @@ function OverlayEditor() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <h1 className="text-2xl font-bold text-gray-900">Metric Definitions</h1>
+      {listError && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 mt-4">{listError}</div>}
       <p className="text-gray-500 mt-1 mb-6">Override how your institution computes a measure, a filter, or a metric&apos;s default filters. Every change is validated and versioned.</p>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div>
@@ -72,7 +76,12 @@ function OverlayEditor() {
               <button key={t.id} onClick={() => setSelected(t)}
                 className={`w-full text-left px-3 py-2 rounded-lg text-sm border ${selected?.id === t.id ? "border-[#0066FF] bg-blue-50" : "border-transparent hover:bg-gray-50"}`}>
                 <div className="text-gray-800">{t.label}</div>
-                {overlays[t.id] && <div className="text-[11px] text-amber-700">Overridden · v{overlays[t.id].version}</div>}
+                {overlays[t.id] && (
+                  <div className={`text-[11px] ${overlays[t.id].status === "skipped" ? "text-red-600" : "text-amber-700"}`}
+                    title={overlays[t.id].problems?.join("\n")}>
+                    {overlays[t.id].status === "skipped" ? "Not applied: no longer valid" : "Overridden"} · v{overlays[t.id].version}
+                  </div>
+                )}
               </button>
             ))}
           </div>
@@ -92,7 +101,7 @@ function OverlayEditor() {
           )}
         </div>
         <div className="lg:col-span-2 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
-          {selected ? <TargetEditor key={selected.id} target={selected} catalog={catalog} onSaved={refresh} />
+          {selected ? <TargetEditor key={selected.id} target={selected} catalog={catalog} onSaved={() => { refresh(); reloadCatalog(); }} />
             : <p className="text-sm text-gray-400 py-12 text-center">Select a definition to view or override it.</p>}
         </div>
       </div>
@@ -136,6 +145,8 @@ function TargetEditor({ target, catalog, onSaved }: { target: Target; catalog: S
       await load();
     } catch (e) {
       setErrors(e instanceof AdminApiError && e.errors.length ? e.errors : [e instanceof Error ? e.message : String(e)]);
+      // Someone else changed it: show their version so the next save is based on it.
+      if (e instanceof AdminApiError && e.status === 409) await load().catch(() => undefined);
     } finally {
       setBusy(false);
     }
@@ -181,7 +192,7 @@ function TargetEditor({ target, catalog, onSaved }: { target: Target; catalog: S
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save override
         </button>
         {overlay && (
-          <button disabled={busy} onClick={() => act(() => deleteOverlay(target.id), "Override removed; the canonical definition applies.")}
+          <button disabled={busy} onClick={() => act(() => deleteOverlay(target.id, version), "Override removed; the canonical definition applies.")}
             className="flex items-center gap-1.5 px-3 py-2 text-gray-600 border border-gray-200 rounded-lg disabled:opacity-50"><Trash2 size={14} /> Remove override</button>
         )}
       </div>

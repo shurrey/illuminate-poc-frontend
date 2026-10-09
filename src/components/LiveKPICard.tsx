@@ -12,7 +12,8 @@ export function LiveKPICard({ result }: { result: CardResult }) {
   const router = useRouter();
   const [showSql, setShowSql] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
-  const definedBy = [...(provenance?.metrics ?? []), ...(provenance?.measures ?? [])].join(", ");
+  const definedBy = [...(provenance?.metrics ?? []), ...(provenance?.measures ?? []),
+    ...(provenance?.overlays ?? []).map((o) => `your override ${o}`)].join(", ");
 
   return (
     <>
@@ -37,6 +38,8 @@ export function LiveKPICard({ result }: { result: CardResult }) {
             <div className="flex items-center gap-2 text-red-500 mb-2">
               <AlertCircle size={16} />
               <span className="text-xs truncate">{error}</span>
+              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); result.retry(); }}
+                className="text-xs text-[#0066FF] hover:underline flex-shrink-0">Retry</button>
             </div>
           ) : (
             <p className="text-3xl font-bold text-gray-900 mb-1">{value}</p>
