@@ -7,11 +7,12 @@ import { InfoModal, SqlViewModal } from "@/components/CardModals";
 import { ContractCalculation } from "@/components/MetricInfo";
 import { useReportVisual } from "@/hooks/useReportVisual";
 import type { FilterValues, ReportDef, RunResult, VisualDef } from "@/types/reports";
+import { applyTransform, type Transformed } from "@/reports/transforms";
 import { BarVisual, KpiVisual, LineVisual, PieVisual, TableVisual } from "./visuals";
 
 const isRun = (r: unknown): r is RunResult => !!r && typeof r === "object" && "rows" in r;
 
-function Body({ visual, result }: { visual: VisualDef; result: RunResult }) {
+function Body({ visual, result }: { visual: VisualDef; result: Pick<RunResult, "columns" | "rows"> }) {
   switch (visual.type) {
     case "kpi": return <KpiVisual result={result} encode={visual.encode} unit={visual.encode.unit as string | undefined} />;
     case "bar": return <BarVisual result={result} encode={visual.encode} />;
@@ -31,6 +32,15 @@ export function VisualCard({ report, visual, values }: { report: ReportDef; visu
   const ignored = [...new Set(runs.flatMap((r) => r.ignored_filters))]
     .map((id) => report.filters.find((f) => f.id === id)?.label ?? id);
   const pinnable = runs.length === 1 && !visual.transform && runs[0].provenance.governed;
+  let shown: Transformed | null = null;
+  let transformError: string | null = null;
+  if (visual.transform && results && !unavailable) {
+    try {
+      shown = applyTransform(visual.transform, results as Record<string, RunResult>);
+    } catch (e) {
+      transformError = e instanceof Error ? e.message : "This visual could not be calculated";
+    }
+  }
   const wide = visual.type === "table" || visual.type === "line";
 
   if (visual.type === "text") {
@@ -67,13 +77,13 @@ export function VisualCard({ report, visual, values }: { report: ReportDef; visu
         )}
         {unavailable && <p className="text-sm text-gray-400">{unavailable.unavailable}</p>}
         {!loading && !error && !unavailable && runs.length > 0 && (
-          visual.transform ? <p className="text-sm text-gray-400">Coming soon.</p> : <Body visual={visual} result={runs[0]} />
+          transformError ? <p className="text-sm text-red-600">{transformError}</p> : <Body visual={visual} result={shown ?? runs[0]} />
         )}
       </div>
       {ignored.length > 0 && <p className="text-[11px] text-gray-400 mt-2">Not filtered by {ignored.join(", ")}</p>}
       {modal === "info" && (
         <InfoModal title={visual.title} onClose={() => setModal(null)}>
-          <ContractCalculation queries={runs.map((r) => ({ contract: r.contract, provenance: r.provenance }))} />
+          <ContractCalculation queries={runs.map((r) => ({ contract: r.contract, provenance: r.provenance }))} transform={shown?.words} />
         </InfoModal>
       )}
       {modal === "sql" && <SqlViewModal title={visual.title} sql={runs.map((r) => r.sql).join("\n\n")} onClose={() => setModal(null)} />}
