@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authService } from "@/services/authService";
+import { reportResults } from "@/reports/resultCache";
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -104,6 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAdmin(authService.isAdmin());
     setIsLoading(false);
     return authService.onSessionExpired(() => {
+      reportResults.clear();
       setIsAuthenticated(false);
       setUser(null);
       setIsAdmin(false);
@@ -127,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
+    reportResults.clear();
     authService.logout();
     setIsAuthenticated(false);
     setUser(null);
