@@ -75,7 +75,7 @@ function CardBuilderContent() {
     querySemantic(contract)
       .then((r) => {
         const column = valueColumn(contract);
-        live && setPreview({ raw: column ? r.rows[0]?.[column] : undefined, sql: r.sql });
+        if (live) setPreview({ raw: column ? r.rows[0]?.[column] : undefined, sql: r.sql });
       })
       .catch((e) => live && setPreviewError(e instanceof Error ? e.message : "The query failed"));
     return () => { live = false; };

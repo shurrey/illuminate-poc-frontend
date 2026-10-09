@@ -94,7 +94,7 @@ export function EntityDetail({
 }
 
 function SchemaTab({
-  columns, relationships, schemaId, tableName, onNavigate,
+  columns, relationships, onNavigate,
 }: {
   columns: [string, { description: string; dataType: string; nullable: boolean }][];
   relationships: Relationship[];
@@ -145,7 +145,6 @@ function SchemaTab({
         ) : (
           <div className="space-y-1.5">
             {relationships.map((rel, i) => {
-              const isOutgoing = rel.sourceSchema === arguments[0] || true; // show both directions
               const targetSchema = rel.targetSchema;
               const targetTable = rel.targetTable;
               return (

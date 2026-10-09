@@ -1,5 +1,5 @@
 import { authService } from "@/services/authService";
-import type { Message, AgentResponse, Artifact, MessageRole, StreamingEvent } from "@/types/chat";
+import type { MessageRole, StreamingEvent } from "@/types/chat";
 
 const API_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
 
