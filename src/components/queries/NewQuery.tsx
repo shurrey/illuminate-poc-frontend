@@ -12,6 +12,7 @@ import { compileSemantic, querySemantic } from "@/services/semanticApi";
 import { ResultTable } from "@/components/ResultTable";
 import { ContractEditor } from "./ContractEditor";
 import { SaveQueryDialog } from "./SaveQueryDialog";
+import { SavedNotice } from "./SavedNotice";
 import type { QueryContract, SemanticResult } from "@/types/semantic";
 
 interface NewQueryProps {
@@ -19,11 +20,12 @@ interface NewQueryProps {
   initialPrompt?: string;
   initialName?: string;
   initialDescription?: string;
+  onViewSaved?: () => void;
 }
 
 const EMPTY: QueryContract = { metrics: [], limit: 100 };
 
-export function NewQuery({ initialContract, initialPrompt, initialName, initialDescription }: NewQueryProps) {
+export function NewQuery({ initialContract, initialPrompt, initialName, initialDescription, onViewSaved }: NewQueryProps) {
   const { catalog, error: catalogError } = useSemanticCatalog();
   const gen = useSemanticGeneration();
   const { saveQuery } = useQueryBuilder();
@@ -36,6 +38,7 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [showSave, setShowSave] = useState(false);
+  const [savedName, setSavedName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!gen.answer) return;
@@ -83,6 +86,7 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
 
   return (
     <div className="space-y-6">
+      {savedName && <SavedNotice name={savedName} onView={onViewSaved} onDismiss={() => setSavedName(null)} />}
       {catalogError && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{catalogError}</div>}
 
       <div className="bg-gradient-to-r from-[#0066FF] to-[#0044cc] rounded-xl p-5 text-white">
@@ -170,6 +174,7 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
             const now = new Date().toISOString();
             saveQuery({ id: crypto.randomUUID(), name, description, prompt: prompt.trim(), contract, createdAt: now, lastUsedAt: now });
             setShowSave(false);
+            setSavedName(name);
           }} />
       )}
     </div>

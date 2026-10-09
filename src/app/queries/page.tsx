@@ -63,10 +63,11 @@ export default function QueriesPage() {
           initialPrompt={loadedQuery?.prompt}
           initialName={loadedQuery?.name}
           initialDescription={loadedQuery?.description}
+          onViewSaved={() => { setLoadedQuery(null); setActiveTab("my-queries"); }}
         />
       )}
       {activeTab === "my-queries" && <MyQueries onLoadQuery={handleLoadQuery} />}
-      {activeTab === "import" && <ImportQuery />}
+      {activeTab === "import" && <ImportQuery onViewSaved={() => setActiveTab("my-queries")} />}
     </div>
   );
 }
