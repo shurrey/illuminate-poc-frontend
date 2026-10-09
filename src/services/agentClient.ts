@@ -3,6 +3,20 @@ import type { MessageRole, StreamingEvent } from "@/types/chat";
 
 const API_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
 
+export interface ConversationSummary {
+  context_id: string;
+  title: string;
+  /** Unix seconds. */
+  updated_at: number;
+}
+
+export interface StoredMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export class ConversationNotFound extends Error {}
+
 class AgentClient {
   async *sendMessageStreaming(
     text: string,
@@ -62,6 +76,20 @@ class AgentClient {
         }
       }
     }
+  }
+
+  async listConversations(): Promise<ConversationSummary[]> {
+    const resp = await authService.authedFetch(`${API_URL}/api/conversations`);
+    if (!resp.ok) throw new Error(`Could not load your conversations (${resp.status})`);
+    return (await resp.json()).conversations;
+  }
+
+  /** Throws ConversationNotFound when the conversation is gone or belongs to someone else. */
+  async getConversation(contextId: string): Promise<StoredMessage[]> {
+    const resp = await authService.authedFetch(`${API_URL}/api/conversations/${encodeURIComponent(contextId)}`);
+    if (resp.status === 404) throw new ConversationNotFound(contextId);
+    if (!resp.ok) throw new Error(`Could not load the conversation (${resp.status})`);
+    return (await resp.json()).messages;
   }
 
   async cancelRequest(requestId: string): Promise<boolean> {

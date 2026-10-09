@@ -6,7 +6,8 @@ import { useChat } from "@/hooks/useChat";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ThinkingBubble } from "@/components/chat/ThinkingBubble";
 import type { QuerySuggestion } from "@/types/chat";
-import { Send, X, ArrowDown, Sparkles, MessageSquare, Trash2 } from "lucide-react";
+import { Send, X, ArrowDown, Sparkles, MessageSquare, SquarePen, Loader2 } from "lucide-react";
+import { ChatHistory } from "@/components/chat/ChatHistory";
 
 const SUGGESTIONS: QuerySuggestion[] = [
   { id: "1", text: "What's the average GPA for Fall 2024?", category: "grades" },
@@ -18,10 +19,12 @@ const SUGGESTIONS: QuerySuggestion[] = [
 function ChatContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  // A prompt in the URL starts a new conversation; fixed at first render because the URL is then cleaned.
+  const [restore] = useState(() => !searchParams.get("prompt"));
   const {
-    messages, isLoading, error, sendMessage, cancelQuery, clearMessages,
+    messages, isLoading, error, sendMessage, cancelQuery, clearMessages, contextId, openConversation, isRestoring,
     statusMessage, thinkingSteps, isThinkingExpanded, toggleThinkingExpanded,
-  } = useChat();
+  } = useChat({ restore });
 
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -85,11 +88,15 @@ function ChatContent() {
           <h1 className="text-lg font-semibold text-gray-900">Ask Illuminate</h1>
           <p className="text-sm text-gray-500">Natural language questions about your institutional data</p>
         </div>
-        {messages.length > 0 && (
-          <button onClick={clearMessages} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors">
-            <Trash2 size={14} /> Clear
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {isRestoring && <Loader2 size={14} className="animate-spin text-gray-300" />}
+          <ChatHistory currentId={contextId} onOpen={(id) => { if (!isLoading) void openConversation(id); }} />
+          {messages.length > 0 && (
+            <button onClick={clearMessages} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors">
+              <SquarePen size={14} /> New chat
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages area */}
