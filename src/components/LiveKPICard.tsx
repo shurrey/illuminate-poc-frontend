@@ -6,6 +6,10 @@ import Link from "next/link";
 import type { CardResult } from "@/hooks/useDashboardCards";
 import { AlertCircle, Code2, Info, MessageSquare, ShieldCheck } from "lucide-react";
 import { SqlViewModal, InfoModal } from "./CardModals";
+import { MetricInfo } from "./MetricInfo";
+import { useSemanticCatalog } from "@/hooks/useSemanticCatalog";
+import { describeQuery } from "@/lib/describeQuery";
+import type { Provenance, QueryContract } from "@/types/semantic";
 
 export function LiveKPICard({ result }: { result: CardResult }) {
   const { card, value, sql, provenance, loading, error } = result;
@@ -78,12 +82,17 @@ export function LiveKPICard({ result }: { result: CardResult }) {
 
       {showSql && sql && <SqlViewModal sql={sql} title={card.label} onClose={() => setShowSql(false)} />}
       {showInfo && (
-        <InfoModal
-          title={card.label}
-          description={definedBy ? `${card.longDescription}\n\nDefinition: ${definedBy}` : card.longDescription}
-          onClose={() => setShowInfo(false)}
-        />
+        <InfoModal title={card.label} intro={card.longDescription} onClose={() => setShowInfo(false)}>
+          <CardCalculation contract={card.contract} provenance={provenance} />
+        </InfoModal>
       )}
     </>
   );
+}
+
+/** Mounted only while Info is open, so cards don't each load the catalog. */
+function CardCalculation({ contract, provenance }: { contract: QueryContract; provenance: Provenance | null }) {
+  const { catalog } = useSemanticCatalog();
+  if (!catalog) return <p className="text-sm text-gray-400">Loading…</p>;
+  return <MetricInfo descriptions={describeQuery(contract, catalog, provenance ?? undefined)} />;
 }

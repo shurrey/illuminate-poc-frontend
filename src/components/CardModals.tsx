@@ -51,12 +51,11 @@ export function SqlViewModal({ sql, title, onClose }: { sql: string; title: stri
   );
 }
 
-export function InfoModal({ title, description, onClose }: { title: string; description: string; onClose: () => void }) {
+export function InfoModal({ title, intro, children, onClose }: { title: string; intro?: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <ModalShell title={`About — ${title}`} onClose={onClose}>
-      <div className="prose prose-sm max-w-none">
-        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{description}</p>
-      </div>
+      {intro && <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line mb-5">{intro}</p>}
+      {children}
     </ModalShell>
   );
 }
