@@ -11,7 +11,6 @@ import {
   MessageSquare,
   Database,
   Layers,
-  ShieldCheck,
   HelpCircle,
   Settings,
   ChevronDown,
@@ -50,11 +49,6 @@ const navSections: NavSection[] = [
   { label: "Data Dictionary", href: "/developer", icon: BookOpen },
   { label: "Metric Definitions", href: "/admin/definitions", icon: Layers, adminOnly: true },
   { label: "Settings", href: "/settings", icon: Settings },
-  {
-    label: "Privacy & Security",
-    href: "/privacy",
-    icon: ShieldCheck,
-  },
   {
     label: "Need help?",
     href: "https://help.anthology.com/illuminate",
