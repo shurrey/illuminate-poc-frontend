@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import type { SchemaInfo, Relationship, PreviewResponse } from "@/services/dictionaryApi";
 import { DOMAIN_COLORS } from "./DomainSidebar";
-import { CellPopover } from "./CellPopover";
+import { ResultTable } from "@/components/ResultTable";
 import { X, Key, ArrowRight, ExternalLink, Loader2 } from "lucide-react";
 
 interface EntityDetailProps {
@@ -177,14 +177,6 @@ function DataTab({
   tableName: string;
   columnMeta: Record<string, { description: string; dataType: string; nullable: boolean }>;
 }) {
-  const [popover, setPopover] = useState<{ value: string; column: string; rect: DOMRect } | null>(null);
-
-  const handleCellClick = useCallback((value: string, colName: string, e: React.MouseEvent<HTMLTableCellElement>) => {
-    if (value.length > 30 || value.startsWith("{") || value.startsWith("[")) {
-      setPopover({ value, column: colName, rect: e.currentTarget.getBoundingClientRect() });
-    }
-  }, []);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-gray-400">
@@ -207,54 +199,8 @@ function DataTab({
       <div className="text-xs text-gray-400 mb-3">
         Live data &middot; {preview.rows.length} rows &middot; {schemaId}.{tableName}
       </div>
-      <div className="border border-gray-200 rounded-lg overflow-auto max-h-[60vh]">
-        <table className="min-w-full divide-y divide-gray-200 text-xs">
-          <thead className="bg-gray-50 sticky top-0">
-            <tr>
-              {preview.columns.map((col) => {
-                const meta = columnMeta[col];
-                const tip = meta ? `${col} (${meta.dataType})\n${meta.description}` : col;
-                return (
-                  <th
-                    key={col}
-                    title={tip}
-                    className="px-3 py-2 text-left font-medium text-gray-500 uppercase whitespace-nowrap cursor-help border-b-2 border-transparent hover:border-[#0066FF]/30 hover:text-[#0066FF] transition-colors"
-                  >
-                    {col}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {preview.rows.map((row, ri) => (
-              <tr key={ri} className="hover:bg-gray-50">
-                {preview.columns.map((col) => {
-                  const val = row[col];
-                  if (val === null || val === undefined) return <td key={col} className="px-3 py-2 text-gray-300 italic">null</td>;
-                  const str = String(val);
-                  const isExpandable = str.length > 30 || str.startsWith("{") || str.startsWith("[");
-                  return (
-                    <td
-                      key={col}
-                      onClick={(e) => handleCellClick(str, col, e)}
-                      className={`px-3 py-2 whitespace-nowrap max-w-[200px] truncate ${
-                        isExpandable ? "cursor-pointer text-[#0066FF] hover:underline" : "text-gray-700"
-                      }`}
-                    >
-                      {str}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {popover && (
-        <CellPopover value={popover.value} columnName={popover.column} anchorRect={popover.rect} onClose={() => setPopover(null)} />
-      )}
+      <ResultTable columns={preview.columns} rows={preview.rows}
+        columnTitles={Object.fromEntries(Object.entries(columnMeta).map(([c, m]) => [c, `${c} (${m.dataType})\n${m.description}`]))} />
     </div>
   );
 }
