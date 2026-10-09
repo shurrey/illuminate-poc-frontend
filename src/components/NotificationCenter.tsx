@@ -5,6 +5,7 @@ import { useUser } from "@/context/UserContext";
 import { mockNotifications } from "@/data/mockAlerts";
 import { Bell, AlertCircle, Lightbulb, RefreshCw, Check } from "lucide-react";
 import Link from "next/link";
+import { SampleDataBadge } from "@/components/SampleDataBadge";
 
 const categoryConfig = {
   alert: { icon: AlertCircle, color: "text-red-500", bg: "bg-red-50" },
@@ -72,7 +73,7 @@ export function NotificationCenter() {
       {isOpen && (
         <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900 text-sm">Notifications</h3>
+            <h3 className="font-semibold text-gray-900 text-sm">Notifications<SampleDataBadge /></h3>
             {unreadCount > 0 && (
               <button
                 onClick={markAllNotificationsRead}
