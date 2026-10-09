@@ -58,7 +58,8 @@ def handler(event, context):
 `),
     });
     corsOriginHandler.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["lambda:GetFunctionConfiguration", "lambda:UpdateFunctionConfiguration"],
+      // The function_updated_v2 waiter polls GetFunction.
+      actions: ["lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:UpdateFunctionConfiguration"],
       resources: [apiLambdaArn],
     }));
 
