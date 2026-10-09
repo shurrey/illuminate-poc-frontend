@@ -30,30 +30,41 @@ export class IlluminateStack extends cdk.Stack {
 
     const siteOrigin = `https://${hosting.distribution.distributionDomainName}`;
 
-    // Add our CloudFront origin to the CI project's Lambda CORS config.
-    // This reads the current ALLOWED_ORIGINS, appends ours if missing,
-    // and writes it back — without touching any other env vars.
+    // Add our CloudFront origin to the API Lambda's ALLOWED_ORIGINS, keeping its other environment
+    // variables. A redeploy of the API stack resets ALLOWED_ORIGINS; redeploy this stack after it.
     const apiLambdaName = `illuminate-api-${prefix.split("/").pop()}`;
+    const apiLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:${apiLambdaName}`;
 
-    const addCorsOrigin = new cr.AwsCustomResource(this, "AddCorsOrigin", {
-      onCreate: {
-        service: "Lambda",
-        action: "getFunctionConfiguration",
-        parameters: { FunctionName: apiLambdaName },
-        physicalResourceId: cr.PhysicalResourceId.of("cors-origin-check"),
-      },
-      onUpdate: {
-        service: "Lambda",
-        action: "getFunctionConfiguration",
-        parameters: { FunctionName: apiLambdaName },
-        physicalResourceId: cr.PhysicalResourceId.of("cors-origin-check"),
-      },
-      policy: cr.AwsCustomResourcePolicy.fromStatements([
-        new iam.PolicyStatement({
-          actions: ["lambda:GetFunctionConfiguration", "lambda:UpdateFunctionConfiguration"],
-          resources: [`arn:aws:lambda:${this.region}:${this.account}:function:${apiLambdaName}`],
-        }),
-      ]),
+    const corsOriginHandler = new lambda.Function(this, "AddCorsOriginHandler", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "index.handler",
+      timeout: cdk.Duration.minutes(2),
+      code: lambda.Code.fromInline(`
+import boto3
+
+def handler(event, context):
+    props = event["ResourceProperties"]
+    if event["RequestType"] != "Delete":
+        client = boto3.client("lambda")
+        name, origin = props["FunctionName"], props["Origin"]
+        client.get_waiter("function_updated_v2").wait(FunctionName=name)
+        env = client.get_function_configuration(FunctionName=name).get("Environment", {}).get("Variables", {})
+        origins = [o.strip() for o in env.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+        if origin not in origins:
+            env["ALLOWED_ORIGINS"] = ",".join(origins + [origin])
+            client.update_function_configuration(FunctionName=name, Environment={"Variables": env})
+            client.get_waiter("function_updated_v2").wait(FunctionName=name)
+    return {"PhysicalResourceId": "cors-origin-" + props["FunctionName"]}
+`),
+    });
+    corsOriginHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["lambda:GetFunctionConfiguration", "lambda:UpdateFunctionConfiguration"],
+      resources: [apiLambdaArn],
+    }));
+
+    new cdk.CustomResource(this, "AddCorsOrigin", {
+      serviceToken: new cr.Provider(this, "AddCorsOriginProvider", { onEventHandler: corsOriginHandler }).serviceToken,
+      properties: { FunctionName: apiLambdaName, Origin: siteOrigin },
     });
 
     // Outputs
