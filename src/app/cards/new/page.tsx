@@ -42,7 +42,10 @@ function CardBuilderContent() {
   const [saved, setSaved] = useState(false);
 
   const contract = useMemo(() => (source ? kpiContract(source) : null), [source]);
-  const dropped = source?.dimensions?.length ? source.dimensions : [];
+  const dropped = [
+    ...(source?.dimensions ?? []).map((d) => `the breakdown by ${d}`),
+    ...[...(source?.metrics ?? []), ...(source?.measures ?? [])].slice(1),
+  ];
 
   useEffect(() => {
     if (gen.answer) setSource(gen.result.contract);
@@ -63,6 +66,12 @@ function CardBuilderContent() {
     let live = true;
     setPreview(null);
     setPreviewError(null);
+    // The agent already ran this exact query; reuse its result instead of running it again.
+    const column = valueColumn(contract);
+    if (gen.result.contract === source && JSON.stringify(source) === JSON.stringify(contract) && gen.result.table && column) {
+      setPreview({ raw: gen.result.table.rows[0]?.[column], sql: gen.result.sql ?? "" });
+      return;
+    }
     querySemantic(contract)
       .then((r) => {
         const column = valueColumn(contract);
@@ -169,7 +178,7 @@ function CardBuilderContent() {
             {contract.filters?.map((f) => <span key={f.dimension} className="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">{f.dimension} {f.op} {f.values?.join(", ")}</span>)}
           </div>
           {dropped.length > 0 && (
-            <p className="text-xs text-gray-500">Cards show a single value, so the breakdown by {dropped.join(", ")} was dropped.</p>
+            <p className="text-xs text-gray-500">Cards show a single value, so {dropped.join(", ")} {dropped.length > 1 ? "were" : "was"} dropped.</p>
           )}
           <div className="text-3xl font-bold text-gray-900">
             {previewError ? <span className="text-sm text-red-600">{previewError}</span> : preview ? formatCardValue(preview.raw, format) : <Loader2 size={20} className="animate-spin text-gray-300" />}

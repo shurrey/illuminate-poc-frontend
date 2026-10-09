@@ -14,6 +14,9 @@ export interface Overlay {
   version: number;
   updated_by: string;
   updated_at: string;
+  /** From the overlay list: "skipped" when the overlay no longer validates and is not applied. */
+  status?: "active" | "skipped";
+  problems?: string[];
 }
 
 export type OverlayValue = { expr: string } | { sql: string } | { default_filters: string[] };
@@ -56,7 +59,8 @@ export const putOverlay = (target: string, value: OverlayValue, description: str
     method: "PUT", body: JSON.stringify({ ...value, description, expected_version: expectedVersion }),
   });
 
-export const deleteOverlay = (target: string) => call<{ overlay: null }>(path(target), { method: "DELETE" });
+export const deleteOverlay = (target: string, expectedVersion: number) =>
+  call<{ overlay: null }>(`${path(target)}?expected_version=${expectedVersion}`, { method: "DELETE" });
 
 export const overlayHistory = (target: string) => call<{ history: Overlay[] }>(`${path(target)}/history`);
 

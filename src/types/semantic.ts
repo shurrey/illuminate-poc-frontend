@@ -28,6 +28,8 @@ export interface Provenance {
   metrics?: string[];
   measures?: string[];
   reason?: string;
+  /** Tenant overlays that shaped the query, as "<target>@v<version>". */
+  overlays?: string[];
 }
 
 export interface SemanticResult {
