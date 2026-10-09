@@ -36,6 +36,7 @@ function CardBuilderContent() {
   const [preview, setPreview] = useState<{ raw: unknown; sql: string } | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [name, setName] = useState(searchParams.get("name") ?? "");
+  const [nameTouched, setNameTouched] = useState(!!searchParams.get("name"));
   const [description, setDescription] = useState("");
   const [format, setFormat] = useState<CardFormat>("number");
   const [saved, setSaved] = useState(false);
@@ -44,18 +45,18 @@ function CardBuilderContent() {
   const dropped = source?.dimensions?.length ? source.dimensions : [];
 
   useEffect(() => {
-    if (gen.result.contract) setSource(gen.result.contract);
-  }, [gen.result.contract]);
+    if (gen.answer) setSource(gen.result.contract);
+  }, [gen.result, gen.answer]);
 
   useEffect(() => {
     if (!contract || !catalog) return;
     setFormat(formatFor(contract, catalog));
     const metric = catalog.metrics.find((m) => m.id === contract.metrics?.[0]);
-    if (metric) {
-      setName((n) => n || metric.display_name);
-      setDescription((d) => d || metric.description);
+    if (metric && !nameTouched) {
+      setName(metric.display_name);
+      setDescription(metric.description);
     }
-  }, [contract, catalog]);
+  }, [contract, catalog, nameTouched]);
 
   useEffect(() => {
     if (!contract) return;
@@ -182,7 +183,7 @@ function CardBuilderContent() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <label className="text-xs font-medium text-gray-600">Card name *
-              <input value={name} onChange={(e) => setName(e.target.value)} className={`${input} mt-1`} />
+              <input value={name} onChange={(e) => { setName(e.target.value); setNameTouched(true); }} className={`${input} mt-1`} />
             </label>
             <label className="text-xs font-medium text-gray-600">Description
               <input value={description} onChange={(e) => setDescription(e.target.value)} className={`${input} mt-1`} />
