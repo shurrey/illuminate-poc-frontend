@@ -1,20 +1,45 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { agentClient } from "@/services/agentClient";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { agentClient, ConversationNotFound, type StoredMessage } from "@/services/agentClient";
 import type { Message, ChatState, ThinkingStep, AgentResponse } from "@/types/chat";
 
 interface UseChatReturn extends ChatState {
   sendMessage: (text: string) => Promise<void>;
   cancelQuery: () => Promise<void>;
   clearMessages: () => void;
+  openConversation: (contextId: string) => Promise<void>;
+  isRestoring: boolean;
   statusMessage: string | null;
   thinkingSteps: ThinkingStep[];
   isThinkingExpanded: boolean;
   toggleThinkingExpanded: () => void;
 }
 
-export function useChat(): UseChatReturn {
+const CONTEXT_KEY = "illuminate_chat_context";
+
+function storeContext(id: string | null) {
+  try {
+    if (id) localStorage.setItem(CONTEXT_KEY, id);
+    else localStorage.removeItem(CONTEXT_KEY);
+  } catch {}
+}
+
+function storedContext(): string | null {
+  try {
+    return localStorage.getItem(CONTEXT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Stored turns carry text only; their tables and charts are not kept. */
+function fromStored(m: StoredMessage): Message {
+  return { id: crypto.randomUUID(), role: m.role, parts: [{ type: "text", content: m.content }], artifacts: [], timestamp: "" };
+}
+
+/** restore: reopen the conversation this browser last used (false starts a new one). */
+export function useChat({ restore = true }: { restore?: boolean } = {}): UseChatReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +47,7 @@ export function useChat(): UseChatReturn {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(true);
+  const [isRestoring, setIsRestoring] = useState(() => restore && storedContext() !== null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentRequestIdRef = useRef<string | null>(null);
@@ -187,7 +213,7 @@ export function useChat(): UseChatReturn {
               const data = (event.data || {}) as AgentResponse;
               const newCtx = data.context_id || data.contextId;
               // The server may replace an id it no longer recognises; always follow it.
-              if (newCtx) setContextId(newCtx);
+              if (newCtx) { setContextId(newCtx); storeContext(newCtx); }
               const finalSteps = [...thinkingStepsRef.current];
               setMessages((prev) => {
                 if (prev.length === 0) return prev;
@@ -239,13 +265,48 @@ export function useChat(): UseChatReturn {
     setMessages([]);
     setError(null);
     setContextId(null);
+    storeContext(null);
     setThinkingSteps([]);
     thinkingStepsRef.current = [];
     setIsThinkingExpanded(true);
   }, []);
 
+  const loadConversation = useCallback(async (id: string) => {
+    try {
+      const stored = await agentClient.getConversation(id);
+      setMessages(stored.map(fromStored));
+      setContextId(id);
+      storeContext(id);
+    } catch (e) {
+      if (e instanceof ConversationNotFound) {
+        setMessages([]);
+        setContextId(null);
+        storeContext(null);
+      } else {
+        setError(e instanceof Error ? e.message : "Could not load the conversation");
+      }
+    } finally {
+      setIsRestoring(false);
+    }
+  }, []);
+
+  const openConversation = useCallback(async (id: string) => {
+    abortControllerRef.current?.abort();
+    setIsRestoring(true);
+    setError(null);
+    await loadConversation(id);
+  }, [loadConversation]);
+
+  useEffect(() => {
+    const id = restore ? storedContext() : null;
+    if (id) void loadConversation(id);
+    else if (!restore) storeContext(null);
+  }, [restore, loadConversation]);
+
   return {
     messages,
+    openConversation,
+    isRestoring,
     isLoading,
     error,
     contextId,
