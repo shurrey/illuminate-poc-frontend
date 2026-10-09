@@ -2,32 +2,35 @@
 
 A proof-of-concept reimagining of [Anthology Illuminate](https://illuminate.blackboard.com) — an analytics platform for higher education. Built with Next.js 16, deployed as a static site to AWS S3 + CloudFront via CDK.
 
-This POC demonstrates a modern, unified analytics dashboard with live Snowflake data, a conversational AI interface powered by a multi-agent system, and a live data dictionary — all integrated with Cognito authentication.
+This POC demonstrates a unified analytics dashboard, a conversational AI interface and a query builder, all driven by the semantic layer in the companion backend. Every number on screen — dashboard cards, chat answers, saved queries — comes from a semantic contract (a metric, or a dataset with measures, dimensions and filters) that the backend compiles to Snowflake SQL. Authentication is through Cognito.
 
 ## Features
 
 ### Dashboard (`/`)
-- **Live KPI Cards** — 6 metrics pulled from Snowflake in real-time via a query API:
-  - Active Students (term-over-term enrollment)
-  - Retention Rate (rolling 90-day window)
-  - Platform Engagement (7-day student activity)
-  - Active Courses (courses with recent activity)
-  - Instructor Engagement (grading activity, RSI compliance indicator)
-  - Classic Courses Still Active (Original Experience sunset tracker)
-- Each card shows: value, sparkline trend, percentage change, and three action icons:
-  - **View SQL** — see the exact Snowflake query behind the metric
-  - **Info** — detailed explanation of methodology
-  - **Ask Illuminate** — pre-filled prompt to dig deeper with the AI agent
-- **Customizable layout** — toggle which sections are visible
-- **Ask About Your Data** — natural language search box that redirects to the AI chat with auto-submit
+- **Live KPI cards.** Each card is a semantic contract, defined in `src/data/dashboardCards.ts` and compiled and run through `POST /api/v1/semantic/query`. The six default cards are:
+  - Active Students
+  - Student Engagement
+  - Active in the Last 7 Days
+  - Courses with Student Activity
+  - Classic Courses
+  - Average Grade
+- **Card actions.** Each card has View SQL (the compiled SQL), Info (the metric definition, plus any tenant overlays applied), Ask Illuminate, and Retry when a query fails.
+- **Custom cards.** You can add cards from `/cards/new`, from the Query Builder, or by pinning a chat answer. They are stored in the browser (`CardStoreContext`).
+- **Customizable layout and Ask About Your Data.** The search box opens the chat with the question already submitted.
 
 ### Ask Illuminate (`/chat`)
-- Full conversational AI interface connected to a multi-agent backend
+- Conversational AI that answers from the semantic layer. It searches the catalog and runs semantic queries, and uses freehand SQL only as a labelled fallback.
+- **Provenance bar** on each answer shows the datasets, metrics and tenant overlays it used. **Pin as card** turns a semantic answer into a dashboard card.
 - **Streaming SSE** — real-time status updates, agent thinking, tool calls
 - **Chain of thought** — expandable view of agent reasoning and tool usage
 - **Rich responses** — markdown text, Recharts visualizations, sortable data tables, SQL transparency
 - **Export** — CSV download, clipboard copy for data artifacts
 - **Pre-filled prompts** — accepts `?prompt=...` (pre-fill) and `?autoSubmit=true` (auto-send) URL params
+
+### Query Builder (`/queries`)
+- **New Query.** Build a contract by picking a dataset or metric, then measures, dimensions, filters and a time range. It compiles as you edit and shows the SQL and any errors. You can also describe the query in plain language and have the agent draft the contract. Run it, save it, or make it a card. An answer with no governed metric behind it is marked Ungoverned and can't be saved or made a card.
+- **My Queries.** Saved contracts. Open one in the editor, or delete it.
+- **Import.** Paste SQL and the agent maps it to an equivalent semantic contract.
 
 ### Reporting (`/reporting`)
 - Browse 10 analytics reports across Learning, Teaching, Leading, Data Q&A, and Custom categories
@@ -39,17 +42,16 @@ This POC demonstrates a modern, unified analytics dashboard with live Snowflake 
   - Tabbed chart visualizations (line, bar, area via Recharts)
 
 ### Data Dictionary (`/developer`)
-- **Live from the Illuminate API** — fetches submodels, definitions, and entity relationships on page load
-- **9 CDM schemas**, 99 tables, 1,518 columns, 221 foreign key relationships
-- Domain sidebar with color-coded schemas and entity counts
-- Entity grid with column counts and relationship counts
-- **Detail panel** (slide-over) with two tabs:
-  - **Schema** — full column table (name, type, description, PK highlighting) + clickable relationship navigation
-  - **Data Preview** — live 20-row preview from Snowflake with expandable cell popovers for long/JSON values
-- Global search across domains, tables, and columns
+- **Tables view.** The raw CDM schema, loaded live from `/api/v1/dictionary/*`: a domain sidebar, an entity grid, and a detail panel with columns, relationships and a 20-row data preview.
+- **ERD view.** Entity-relationship diagrams, rendered with Mermaid.
+- **Semantic Layer view.** The semantic catalog: datasets, metrics, measures, dimensions, filters, and PII-protected columns.
+
+### Metric Definitions (`/admin/definitions`, admins only)
+- Edit tenant overlays on measures, filters and metric defaults. Every edit is compiled before it saves.
+- Each overlay is versioned. Saving over a newer version returns a 409 conflict and reloads the editor. You can view an overlay's history, revert it, or delete it.
 
 ### Settings (`/settings`)
-- Account preferences placeholder (Profile, Notifications, Privacy & Security, Snowflake Service Accounts, Language & Region)
+- Account preferences placeholder (Profile, Notifications, Privacy & Security, Language & Region)
 
 ## Architecture
 
@@ -61,9 +63,12 @@ Browser
   │   └── Tailwind CSS + Recharts
   │
   ├── Agent API (Lambda Function URL) ← illuminate-conversational-intelligence project
-  │   ├── POST /api/chat/stream (SSE streaming, multi-agent orchestration)
-  │   ├── GET  /api/v1/dictionary/* (submodels, definitions, erd, preview)
-  │   └── POST /api/v1/dashboard/query (Snowflake SQL execution)
+  │   ├── POST /api/chat/stream          (SSE chat, semantic-first tools)
+  │   ├── GET  /api/v1/semantic/catalog  (datasets, metrics, tenant overlays applied)
+  │   ├── POST /api/v1/semantic/compile  (contract → SQL, no execution)
+  │   ├── POST /api/v1/semantic/query    (contract → SQL → rows, with provenance)
+  │   ├── /api/v1/admin/overlay(s)       (tenant overlay CRUD, history, revert)
+  │   └── GET  /api/v1/dictionary/*      (raw schema browser and preview)
   │
   └── Cognito User Pool ← shared with illuminate-conversational-intelligence
 ```
@@ -75,6 +80,7 @@ The `infra/` directory contains an AWS CDK stack that deploys:
 - **S3 Bucket** — hosts the static site files
 - **CloudFront Distribution** — HTTPS, SPA fallback routing (404 → index.html)
 - **SSM Parameter Lookups** — reads Cognito pool/client IDs and API URL from parameters published by the companion project
+- **CORS origin custom resource** — appends the CloudFront origin to the API Lambda's `ALLOWED_ORIGINS`, leaving its other environment variables alone
 
 The stack does **not** manage Cognito, the Lambda API, or Snowflake — those belong to the [illuminate-conversational-intelligence](https://github.com/anthropics/illuminate-conversational-intelligence) project.
 
@@ -116,9 +122,14 @@ npm run build
 # Deploy to AWS (reads SSM params, creates S3 + CloudFront)
 cd infra
 npx cdk deploy -c environment=dev
+```
 
-# Add your CloudFront domain to the API Lambda's CORS config
-./scripts/add-cors-origin.sh illuminate-api-dev https://YOUR_CLOUDFRONT_DOMAIN.cloudfront.net
+The stack adds the CloudFront origin to the API Lambda's `ALLOWED_ORIGINS` itself. Redeploying the backend resets `ALLOWED_ORIGINS` from the backend's own config, so redeploy this stack after it. You can also run `infra/scripts/add-cors-origin.sh <function-name> <origin>`, which does the same thing by hand.
+
+## Lint
+
+```bash
+npm run lint
 ```
 
 ### First Deploy
@@ -151,58 +162,55 @@ npx cdk destroy -c environment=dev
 ```
 illuminate-poc/
 ├── src/
-│   ├── app/                    # Next.js App Router pages
-│   │   ├── page.tsx            # Dashboard (live KPI cards, AI search, feed)
-│   │   ├── chat/page.tsx       # Ask Illuminate (conversational AI)
-│   │   ├── developer/page.tsx  # Data Dictionary (live schema browser)
-│   │   ├── reporting/          # Reports list + detail views
-│   │   └── settings/page.tsx   # Settings placeholder
+│   ├── app/                       # Next.js App Router pages
+│   │   ├── page.tsx               # Dashboard (KPI cards, AI search, feed)
+│   │   ├── chat/page.tsx          # Ask Illuminate
+│   │   ├── queries/page.tsx       # Query Builder (New, My Queries, Import)
+│   │   ├── cards/new/page.tsx     # Card builder
+│   │   ├── developer/page.tsx     # Data Dictionary + Semantic Layer view
+│   │   ├── admin/definitions/     # Tenant overlay editor (admins)
+│   │   ├── reporting/             # Reports list + detail views (mock data)
+│   │   └── settings/page.tsx      # Settings placeholder
 │   │
 │   ├── components/
-│   │   ├── Navigation.tsx      # Dark header with nav, Snowflake logo, utilities
-│   │   ├── NavDrawer.tsx       # Slide-out hamburger menu
-│   │   ├── LiveKPICard.tsx     # Dashboard metric card (live Snowflake data)
-│   │   ├── CardModals.tsx      # SQL view + info modals for KPI cards
-│   │   ├── DataQASearch.tsx    # AI search box (redirects to /chat)
-│   │   ├── BrandLogo.tsx       # Blackboard Illuminate wordmark
-│   │   ├── SnowflakeLogo.tsx   # Snowflake Inc. official logo SVG
-│   │   ├── chat/               # Chat components (MessageBubble, ThinkingBubble, etc.)
-│   │   └── schema/             # Data Dictionary components (DomainSidebar, EntityGrid, etc.)
+│   │   ├── LiveKPICard.tsx        # Dashboard card (runs its contract)
+│   │   ├── CardModals.tsx         # SQL and info modals for cards
+│   │   ├── chat/                  # MessageBubble (provenance, pin), charts, tables
+│   │   ├── queries/               # ContractEditor, NewQuery, MyQueries, ImportQuery
+│   │   ├── semantic/              # SemanticLayerView
+│   │   └── schema/                # Raw schema browser components
 │   │
-│   ├── context/
-│   │   ├── AuthContext.tsx      # Cognito login (amazon-cognito-identity-js)
-│   │   └── UserContext.tsx      # User preferences (favorites, recent, widgets)
-│   │
+│   ├── context/                   # Auth, user prefs, card store, query builder state
 │   ├── data/
-│   │   ├── dashboardCards.ts   # KPI card config (SQL queries, descriptions, prompts)
-│   │   ├── mockReports.ts      # Static report catalog
-│   │   ├── mockChanges.ts      # Static "What Changed" feed
-│   │   └── mockAlerts.ts       # Static notifications
+│   │   ├── dashboardCards.ts      # Card contracts, formats, default cards
+│   │   └── mock*.ts               # Static reports, feed, alerts
 │   │
 │   ├── hooks/
-│   │   ├── useChat.ts          # Chat state + SSE streaming
-│   │   ├── useDashboardCards.ts # Live KPI card data fetching
-│   │   └── useDictionary.ts    # Live data dictionary fetching
+│   │   ├── useChat.ts             # Chat state + SSE streaming
+│   │   ├── useDashboardCards.ts   # Runs card contracts (keyed by contract, retry)
+│   │   ├── useSemanticCatalog.ts  # Loads the catalog (ETag revalidation)
+│   │   ├── useSemanticGeneration.ts # Natural language / SQL → contract via the agent
+│   │   └── useDictionary.ts       # Raw schema fetching
 │   │
 │   ├── services/
-│   │   ├── agentClient.ts      # Agent API client (chat streaming)
-│   │   ├── authService.ts      # Cognito authentication service
-│   │   ├── dashboardApi.ts     # Dashboard query API client
-│   │   └── dictionaryApi.ts    # Data dictionary API client
+│   │   ├── agentClient.ts         # Chat streaming and cancel
+│   │   ├── semanticApi.ts         # Catalog, compile, query
+│   │   ├── adminApi.ts            # Overlay CRUD, history, revert
+│   │   ├── dictionaryApi.ts       # Raw schema API
+│   │   └── authService.ts         # Cognito authentication
 │   │
-│   └── types/
-│       └── chat.ts             # Chat message, artifact, streaming event types
+│   └── types/                     # chat, semantic (handwritten API types), queryBuilder
 │
-├── infra/                       # AWS CDK infrastructure
-│   ├── bin/app.ts              # CDK app entry point
+├── infra/                         # AWS CDK infrastructure
+│   ├── bin/app.ts                 # CDK app entry point
 │   ├── lib/
-│   │   ├── illuminate-stack.ts # Main stack (hosting + SSM lookups)
-│   │   └── hosting.ts          # S3 + CloudFront construct
-│   └── scripts/
-│       └── add-cors-origin.sh  # Safely append CORS origin to API Lambda
+│   │   ├── illuminate-stack.ts    # Stack: hosting, SSM lookups, CORS origin
+│   │   └── hosting.ts             # S3 + CloudFront construct
+│   └── scripts/add-cors-origin.sh # Manual CORS origin append
 │
-├── .env.example                 # Environment variable template
-├── next.config.ts               # Static export configuration
+├── eslint.config.mjs              # ESLint flat config
+├── .env.example                   # Environment variable template
+├── next.config.ts                 # Static export configuration
 └── package.json
 ```
 
@@ -219,10 +227,10 @@ illuminate-poc/
 | SQL Formatting | sql-formatter |
 | Hosting | AWS S3 + CloudFront |
 | IaC | AWS CDK (TypeScript) |
-| Data | Snowflake (via companion project's Lambda API) |
-| AI | Multi-agent system (via companion project's Bedrock AgentCore) |
+| Data | Semantic layer → Snowflake (via companion project's Lambda API) |
+| AI | Amazon Bedrock chat with semantic-layer tools (companion project) |
 
 ## Related Projects
 
-- **illuminate-conversational-intelligence** — Multi-agent backend (Bedrock AgentCore), Lambda API proxy, Cognito user pool, Snowflake integration, CDK infrastructure
+- **illuminate-conversational-intelligence** — Semantic layer (dataset and metric definitions, compiler, tenant overlays), Bedrock chat, Lambda API, Cognito user pool, Snowflake integration, CDK infrastructure
 - **illuminate-mcp** — MCP server for schema exploration and SQL generation
