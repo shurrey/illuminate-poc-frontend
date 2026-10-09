@@ -2,7 +2,7 @@
 
 A proof-of-concept reimagining of [Anthology Illuminate](https://illuminate.blackboard.com) — an analytics platform for higher education. Built with Next.js 16, deployed as a static site to AWS S3 + CloudFront via CDK.
 
-This POC demonstrates a unified analytics dashboard, a conversational AI interface and a query builder, all driven by the semantic layer in the companion backend. Every number on screen — dashboard cards, chat answers, saved queries — comes from a semantic contract (a metric, or a dataset with measures, dimensions and filters) that the backend compiles to Snowflake SQL. Authentication is through Cognito.
+This POC demonstrates a unified analytics dashboard, a conversational AI interface and a query builder, all driven by the semantic layer in the companion backend. Every live number — dashboard KPI cards, chat answers, saved queries — comes from a semantic contract (a metric, or a dataset with measures, dimensions and filters) that the backend compiles to Snowflake SQL. Authentication is through Cognito. The What Changed feed, notifications and Reporting pages still show illustrative data and are badged "Sample data".
 
 ## Features
 
@@ -32,7 +32,7 @@ This POC demonstrates a unified analytics dashboard, a conversational AI interfa
 - **My Queries.** Saved contracts. Open one in the editor, or delete it.
 - **Import.** Paste SQL and the agent maps it to an equivalent semantic contract.
 
-### Reporting (`/reporting`)
+### Reporting (`/reporting`, sample data)
 - Browse 10 analytics reports across Learning, Teaching, Leading, Data Q&A, and Custom categories
 - Search and filter by area
 - Click into detailed report views with:

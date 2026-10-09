@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useUser } from "@/context/UserContext";
 import { mockReports, Report } from "@/data/mockReports";
 import { Star, Search } from "lucide-react";
+import { SampleDataBadge } from "@/components/SampleDataBadge";
 
 const areaLabels: Record<string, string> = {
   learning: "Learning",
@@ -43,7 +44,7 @@ function ReportingContent() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Reports<SampleDataBadge /></h1>
         <p className="text-gray-500 mt-1">
           Explore analytics reports available for your role
         </p>

@@ -3,6 +3,7 @@
 import { mockChanges } from "@/data/mockChanges";
 import Link from "next/link";
 import { AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { SampleDataBadge } from "@/components/SampleDataBadge";
 
 const severityConfig = {
   info: {
@@ -51,6 +52,7 @@ export function WhatChangedFeed() {
       <div className="px-5 py-4 border-b border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900">
           What Changed
+          <SampleDataBadge />
         </h2>
         <p className="text-sm text-gray-500">Notable changes since your last visit</p>
       </div>
