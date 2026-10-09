@@ -1,0 +1,75 @@
+"use client";
+
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ResultTable } from "@/components/ResultTable";
+import type { RunResult, VisualDef } from "@/types/reports";
+
+const COLORS = ["#0066FF", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+
+/** ratio → percent with one decimal; percent → one decimal; other numbers grouped, at most two decimals. */
+export function formatValue(value: unknown, unit = ""): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value !== "number") return String(value);
+  if (unit === "ratio") return `${(value * 100).toFixed(1)}%`;
+  if (unit === "percent") return `${value.toFixed(1)}%`;
+  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : []);
+
+export function KpiVisual({ result, encode, unit }: { result: RunResult; encode: VisualDef["encode"]; unit?: string }) {
+  const column = String(encode.value ?? result.columns[result.columns.length - 1]);
+  return <p className="text-3xl font-bold text-gray-900">{formatValue(result.rows[0]?.[column], unit)}</p>;
+}
+
+export function BarVisual({ result, encode }: { result: RunResult; encode: VisualDef["encode"] }) {
+  const ys = list(encode.y);
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <BarChart data={result.rows} layout={encode.horizontal ? "vertical" : "horizontal"}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        {encode.horizontal
+          ? <><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey={String(encode.x)} width={140} tick={{ fontSize: 11 }} /></>
+          : <><XAxis dataKey={String(encode.x)} tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /></>}
+        <Tooltip />
+        {ys.length > 1 && <Legend />}
+        {ys.map((y, i) => <Bar key={y} dataKey={y} stackId={encode.stacked ? "s" : undefined} fill={COLORS[i % COLORS.length]} />)}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function LineVisual({ result, encode }: { result: RunResult; encode: VisualDef["encode"] }) {
+  const ys = list(encode.y);
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <LineChart data={result.rows}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <XAxis dataKey={String(encode.x)} tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} />
+        <Tooltip />
+        {ys.length > 1 && <Legend />}
+        {ys.map((y, i) => <Line key={y} type="monotone" dataKey={y} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} />)}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function PieVisual({ result, encode }: { result: RunResult; encode: VisualDef["encode"] }) {
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <PieChart>
+        <Pie data={result.rows} dataKey={String(encode.value)} nameKey={String(encode.label)} innerRadius={encode.donut ? 55 : 0} outerRadius={95}>
+          {result.rows.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+        </Pie>
+        <Tooltip />
+        <Legend />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function TableVisual({ result, encode }: { result: RunResult; encode: VisualDef["encode"] }) {
+  const columns = list(encode.columns).filter((c) => result.columns.includes(c));
+  return <ResultTable columns={columns.length ? columns : result.columns} rows={result.rows} />;
+}
