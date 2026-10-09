@@ -1,4 +1,8 @@
-import type { CalculationLine, QueryDescription } from "@/lib/describeQuery";
+"use client";
+
+import { useSemanticCatalog } from "@/hooks/useSemanticCatalog";
+import { describeQuery, type CalculationLine, type QueryDescription } from "@/lib/describeQuery";
+import type { Provenance, QueryContract } from "@/types/semantic";
 
 function Line({ line }: { line: CalculationLine }) {
   return (
@@ -47,4 +51,14 @@ export function MetricInfo({ descriptions }: { descriptions: QueryDescription[] 
       ))}
     </div>
   );
+}
+
+/** Info for the queries that produced a number; loads the catalog only when rendered (Info open). */
+export function ContractCalculation({ queries, transform }: {
+  queries: { contract: QueryContract; provenance?: Provenance | null }[];
+  transform?: string;
+}) {
+  const { catalog } = useSemanticCatalog();
+  if (!catalog) return <p className="text-sm text-gray-400">Loading…</p>;
+  return <MetricInfo descriptions={queries.flatMap((q) => describeQuery(q.contract, catalog, q.provenance ?? undefined, transform))} />;
 }
