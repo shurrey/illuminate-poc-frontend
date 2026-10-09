@@ -28,10 +28,9 @@ export class AdminApiError extends Error {
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = await authService.getValidToken();
-  const resp = await fetch(`${API_URL}/api/v1/admin${path}`, {
+  const resp = await authService.authedFetch(`${API_URL}/api/v1/admin${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { "Content-Type": "application/json" },
   });
   if (resp.ok) return resp.json();
   let detail: unknown = null;

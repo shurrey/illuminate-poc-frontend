@@ -36,6 +36,7 @@ class AuthService {
   private state: AuthState = { user: null, isAuthenticated: false, token: null, loginTimestamp: null };
   private userPool: CognitoUserPool | null = null;
   private refreshPromise: Promise<string | null> | null = null;
+  private expiredListeners = new Set<() => void>();
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -66,12 +67,35 @@ class AuthService {
     } catch {}
   }
 
-  /** Force logout if the session is older than SESSION_MAX_AGE_MS. */
-  private checkSessionExpiry() {
-    if (!this.state.isAuthenticated || !this.state.loginTimestamp) return;
+  /** Force logout if the session is older than SESSION_MAX_AGE_MS; true when it was. */
+  private checkSessionExpiry(): boolean {
+    if (!this.state.isAuthenticated || !this.state.loginTimestamp) return false;
     if (Date.now() - this.state.loginTimestamp > SESSION_MAX_AGE_MS) {
-      this.logout();
+      this.expireSession();
+      return true;
     }
+    return false;
+  }
+
+  /** Called with no arguments when a signed-in session ends without the user signing out. */
+  onSessionExpired(listener: () => void): () => void {
+    this.expiredListeners.add(listener);
+    return () => { this.expiredListeners.delete(listener); };
+  }
+
+  private expireSession() {
+    const wasSignedIn = this.state.isAuthenticated;
+    this.logout();
+    if (wasSignedIn) this.expiredListeners.forEach((l) => l());
+  }
+
+  /** fetch with the ID token; a 401 or a failed refresh ends the session and notifies listeners. */
+  async authedFetch(input: string, init: RequestInit = {}): Promise<Response> {
+    const token = await this.getValidToken();
+    const headers = { ...(init.headers as Record<string, string> | undefined), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    const resp = await fetch(input, { ...init, headers });
+    if (resp.status === 401 && token) this.expireSession();
+    return resp;
   }
 
   private updateToken(session: CognitoUserSession) {
@@ -94,14 +118,14 @@ class AuthService {
 
       const cognitoUser = this.userPool.getCurrentUser();
       if (!cognitoUser) {
-        this.logout();
+        this.expireSession();
         resolve(null);
         return;
       }
 
       cognitoUser.getSession((err: Error | null, session: CognitoUserSession | null) => {
         if (err || !session || !session.isValid()) {
-          this.logout();
+          this.expireSession();
           resolve(null);
         } else {
           this.updateToken(session);
@@ -167,7 +191,7 @@ class AuthService {
    * Returns null if not authenticated, session expired, or refresh fails.
    */
   async getValidToken(): Promise<string | null> {
-    if (!this.isAuthenticated()) return null;
+    if (this.checkSessionExpiry() || !this.isAuthenticated()) return null;
 
     if (!isTokenExpired(this.state.token!)) {
       return this.state.token;

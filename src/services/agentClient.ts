@@ -4,11 +4,6 @@ import type { MessageRole, StreamingEvent } from "@/types/chat";
 const API_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
 
 class AgentClient {
-  private async getAuthHeaders(): Promise<Record<string, string>> {
-    const token = await authService.getValidToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
   async *sendMessageStreaming(
     text: string,
     contextId?: string,
@@ -33,12 +28,11 @@ class AgentClient {
       request_id: reqId,
     };
 
-    const response = await fetch(`${API_URL}/api/chat/stream`, {
+    const response = await authService.authedFetch(`${API_URL}/api/chat/stream`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "text/event-stream",
-        ...(await this.getAuthHeaders()),
       },
       body: JSON.stringify(request),
       signal,
@@ -72,12 +66,9 @@ class AgentClient {
 
   async cancelRequest(requestId: string): Promise<boolean> {
     try {
-      const response = await fetch(`${API_URL}/api/chat/cancel/${requestId}`, {
+      const response = await authService.authedFetch(`${API_URL}/api/chat/cancel/${requestId}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await this.getAuthHeaders()),
-        },
+        headers: { "Content-Type": "application/json" },
       });
       if (!response.ok) return false;
       const result = await response.json();
