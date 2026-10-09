@@ -9,33 +9,7 @@ import { ReportView } from "@/components/reports/ReportView";
 import { useSemanticCatalog } from "@/hooks/useSemanticCatalog";
 import { getReport } from "@/services/reportsApi";
 import type { FilterValues, ReportDef } from "@/types/reports";
-
-// Filter values live in the URL (f.<id>=a&f.<id>=b, or f.<id>=start..end) so a filtered view can be shared.
-function valuesFromUrl(report: ReportDef, params: URLSearchParams): FilterValues | null {
-  const found: FilterValues = {};
-  for (const f of report.filters) {
-    const raw = params.getAll(`f.${f.id}`);
-    if (raw.length === 0) continue;
-    if (f.control === "date_range") {
-      const [start, end] = raw[0].split("..");
-      found[f.id] = { ...(start ? { start } : {}), ...(end ? { end } : {}) };
-    } else {
-      found[f.id] = raw;
-    }
-  }
-  return Object.keys(found).length ? found : null;
-}
-
-function urlFor(id: string, report: ReportDef, values: FilterValues): string {
-  const params = new URLSearchParams({ id });
-  for (const f of report.filters) {
-    const v = values[f.id];
-    if (!v) continue;
-    if (Array.isArray(v)) v.forEach((x) => params.append(`f.${f.id}`, String(x)));
-    else if (v.start || v.end) params.set(`f.${f.id}`, `${v.start ?? ""}..${v.end ?? ""}`);
-  }
-  return `/reporting/report?${params.toString()}`;
-}
+import { urlFor, valuesFromUrl } from "@/reports/urlState";
 
 function ReportPage() {
   const params = useSearchParams();
@@ -54,9 +28,9 @@ function ReportPage() {
   }, [id]);
 
   const report = loaded?.id === id ? loaded.report : null;
-  const values = useMemo(() => (report ? valuesFromUrl(report, params) ?? loaded!.defaults : {}), [report, params, loaded]);
+  const values = useMemo(() => (report ? valuesFromUrl(report.filters, params) ?? loaded!.defaults : {}), [report, params, loaded]);
   const setValues = useCallback((next: FilterValues) => {
-    if (report) router.replace(urlFor(id, report, next), { scroll: false });
+    if (report) router.replace(urlFor(id, report.filters, next), { scroll: false });
   }, [report, id, router]);
 
   if (error) return <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 text-sm text-red-600">{error}</div>;
