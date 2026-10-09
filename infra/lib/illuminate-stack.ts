@@ -31,7 +31,7 @@ export class IlluminateStack extends cdk.Stack {
     const siteOrigin = `https://${hosting.distribution.distributionDomainName}`;
 
     // Add our CloudFront origin to the API Lambda's ALLOWED_ORIGINS, keeping its other environment
-    // variables. A redeploy of the API stack resets ALLOWED_ORIGINS; redeploy this stack after it.
+    // variables. An API stack deploy resets ALLOWED_ORIGINS, so this runs on every deploy of this stack.
     const apiLambdaName = `illuminate-api-${prefix.split("/").pop()}`;
     const apiLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:${apiLambdaName}`;
 
@@ -64,7 +64,7 @@ def handler(event, context):
 
     new cdk.CustomResource(this, "AddCorsOrigin", {
       serviceToken: new cr.Provider(this, "AddCorsOriginProvider", { onEventHandler: corsOriginHandler }).serviceToken,
-      properties: { FunctionName: apiLambdaName, Origin: siteOrigin },
+      properties: { FunctionName: apiLambdaName, Origin: siteOrigin, DeployedAt: new Date().toISOString() },
     });
 
     // Outputs
