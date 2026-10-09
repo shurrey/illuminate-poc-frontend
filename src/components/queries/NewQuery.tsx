@@ -9,7 +9,7 @@ import { useQueryBuilder } from "@/context/QueryBuilderContext";
 import { useSemanticCatalog } from "@/hooks/useSemanticCatalog";
 import { useSemanticGeneration } from "@/hooks/useSemanticGeneration";
 import { compileSemantic, querySemantic } from "@/services/semanticApi";
-import { DataTable } from "@/components/chat/DataTable";
+import { ResultTable } from "@/components/ResultTable";
 import { ContractEditor } from "./ContractEditor";
 import { SaveQueryDialog } from "./SaveQueryDialog";
 import type { QueryContract, SemanticResult } from "@/types/semantic";
@@ -47,12 +47,13 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
 
   const hasSelection = !!(contract.metrics?.length || contract.measures?.length);
   const [compileError, setCompileError] = useState<string | null>(null);
+  const [compiledSql, setCompiledSql] = useState<string | null>(null);
   useEffect(() => {
-    if (!hasSelection) { setCompileError(null); return; }
+    if (!hasSelection) { setCompileError(null); setCompiledSql(null); return; }
     let live = true;
     const t = setTimeout(() => {
-      compileSemantic(contract).then(() => live && setCompileError(null))
-        .catch((e) => live && setCompileError(e instanceof Error ? e.message : "This query can't be compiled"));
+      compileSemantic(contract).then((c) => { if (live) { setCompileError(null); setCompiledSql(c.sql); } })
+        .catch((e) => { if (live) { setCompileError(e instanceof Error ? e.message : "This query can't be compiled"); setCompiledSql(null); } });
     }, 400);
     return () => { live = false; clearTimeout(t); };
   }, [contract, hasSelection]);
@@ -115,7 +116,7 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
           <div className="flex gap-2"><AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
             <span><strong>Ungoverned.</strong> No governed metric answers this, so it can&apos;t be saved or made a card. {gen.result.provenance?.reason}</span>
           </div>
-          {gen.result.table && <DataTable data={gen.result.table} maxRows={20} />}
+          {gen.result.table && <ResultTable columns={gen.result.table.columns} rows={gen.result.table.rows} />}
         </div>
       )}
       {gen.result.contract && (
@@ -146,17 +147,19 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
       </div>
 
       {compileError && <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">{compileError}</div>}
+      {compiledSql && (
+        <details open className="bg-white rounded-xl border border-gray-200 px-4 py-3 text-xs text-gray-500">
+          <summary className="cursor-pointer text-sm text-gray-700">SQL</summary>
+          <pre className="mt-2 p-3 bg-gray-800 text-gray-100 rounded-lg overflow-x-auto max-h-72">{compiledSql}</pre>
+        </details>
+      )}
       {runError && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{runError}</div>}
       {result && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-sm text-gray-700">
             <ShieldCheck size={14} className="text-emerald-600" /> {result.rows.length} rows from {[...(result.provenance.metrics ?? []), ...(result.provenance.measures ?? [])].join(", ")}
           </div>
-          <DataTable data={{ columns: result.columns, rows: result.rows }} maxRows={20} />
-          <details className="px-4 py-3 text-xs text-gray-500 border-t border-gray-100">
-            <summary className="cursor-pointer">Compiled SQL</summary>
-            <pre className="mt-2 p-3 bg-gray-800 text-gray-100 rounded-lg overflow-x-auto max-h-72">{result.sql}</pre>
-          </details>
+          <div className="p-4"><ResultTable columns={result.columns} rows={result.rows} /></div>
         </div>
       )}
 

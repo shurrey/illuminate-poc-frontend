@@ -28,7 +28,7 @@ This POC demonstrates a unified analytics dashboard, a conversational AI interfa
 - **Pre-filled prompts** — accepts `?prompt=...` (pre-fill) and `?autoSubmit=true` (auto-send) URL params
 
 ### Query Builder (`/queries`)
-- **New Query.** Build a contract by picking a dataset or metric, then measures, dimensions, filters and a time range. It compiles as you edit and shows the SQL and any errors. You can also describe the query in plain language and have the agent draft the contract. Run it, save it, or make it a card. An answer with no governed metric behind it is marked Ungoverned and can't be saved or made a card.
+- **New Query.** Build a contract by picking a dataset or metric, then measures, dimensions, filters and a time range. It compiles as you edit and shows the SQL, or why it can't compile. Results use the same table as the Data Dictionary preview. You can also describe the query in plain language and have the agent draft the contract. Run it, save it, or make it a card. An answer with no governed metric behind it is marked Ungoverned and can't be saved or made a card.
 - **My Queries.** Saved contracts. Open one in the editor, or delete it.
 - **Import.** Paste SQL and the agent maps it to an equivalent semantic contract.
 
