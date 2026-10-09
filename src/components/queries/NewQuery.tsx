@@ -8,7 +8,7 @@ import { AlertTriangle, LayoutDashboard, Loader2, Play, RotateCcw, Save, Send, S
 import { useQueryBuilder } from "@/context/QueryBuilderContext";
 import { useSemanticCatalog } from "@/hooks/useSemanticCatalog";
 import { useSemanticGeneration } from "@/hooks/useSemanticGeneration";
-import { querySemantic } from "@/services/semanticApi";
+import { compileSemantic, querySemantic } from "@/services/semanticApi";
 import { DataTable } from "@/components/chat/DataTable";
 import { ContractEditor } from "./ContractEditor";
 import { SaveQueryDialog } from "./SaveQueryDialog";
@@ -38,13 +38,25 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
   const [showSave, setShowSave] = useState(false);
 
   useEffect(() => {
-    if (!gen.result.contract) return;
-    setContract(gen.result.contract);
+    if (!gen.answer) return;
+    // An answer without a governed contract must not leave the previous query looking like its result.
+    setContract(gen.result.contract ?? EMPTY);
     setEditorKey((k) => k + 1);
     setResult(null);
-  }, [gen.result.contract]);
+  }, [gen.result, gen.answer]);
 
   const hasSelection = !!(contract.metrics?.length || contract.measures?.length);
+  const [compileError, setCompileError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!hasSelection) { setCompileError(null); return; }
+    let live = true;
+    const t = setTimeout(() => {
+      compileSemantic(contract).then(() => live && setCompileError(null))
+        .catch((e) => live && setCompileError(e instanceof Error ? e.message : "This query can't be compiled"));
+    }, 400);
+    return () => { live = false; clearTimeout(t); };
+  }, [contract, hasSelection]);
+  const usable = hasSelection && !compileError;
   const ungoverned = gen.result.provenance?.governed === false;
 
   const run = async () => {
@@ -119,13 +131,13 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
         {catalog ? <ContractEditor key={editorKey} catalog={catalog} contract={contract} onChange={(c) => { setContract(c); setResult(null); }} />
           : <Loader2 size={18} className="animate-spin text-gray-300" />}
         <div className="flex items-center gap-2 mt-5 pt-4 border-t border-gray-100">
-          <button onClick={run} disabled={!hasSelection || running}
+          <button onClick={run} disabled={!usable || running}
             className="flex items-center gap-1.5 px-4 py-2 bg-[#0066FF] hover:bg-[#0052cc] text-white text-sm font-medium rounded-lg disabled:opacity-50">
             {running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {running ? "Running..." : "Run"}
           </button>
-          <button onClick={() => setShowSave(true)} disabled={!hasSelection}
+          <button onClick={() => setShowSave(true)} disabled={!usable}
             className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg disabled:opacity-50"><Save size={14} /> Save</button>
-          {hasSelection && (
+          {usable && (
             <Link href={`/cards/new?contract=${encodeURIComponent(JSON.stringify(contract))}&name=${encodeURIComponent(prompt.slice(0, 60))}`}
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg"><LayoutDashboard size={14} /> Create card</Link>
           )}
@@ -133,6 +145,7 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
         </div>
       </div>
 
+      {compileError && <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">{compileError}</div>}
       {runError && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{runError}</div>}
       {result && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
