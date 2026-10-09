@@ -4,110 +4,63 @@ import { authService } from "./authService";
 
 const API_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
 
-export interface OverlayPayload {
-  owner: string;
-  last_reviewed: string; // ISO date
-  diff_description: string;
-  measure_sql: string;
-}
-
-export interface MetricSummary {
-  id: string;
-  display_name: string;
+/** Targets: `measure:<dataset>:<name>`, `filter:<dataset>:<name>`, `metric:<metric id>`. */
+export interface Overlay {
+  target: string;
+  expr?: string | null;
+  sql?: string | null;
+  default_filters?: string[] | null;
   description: string;
-  owner: string;
-  entity: string;
-  canonical_sql: string;
-  synonyms: string[];
-  overlay: OverlayPayload | null;
+  version: number;
+  updated_by: string;
+  updated_at: string;
 }
 
-export interface MetricListResponse {
-  tenant_id: string;
-  metrics: MetricSummary[];
+export type OverlayValue = { expr: string } | { sql: string } | { default_filters: string[] };
+
+export class AdminApiError extends Error {
+  constructor(message: string, readonly status: number, readonly errors: string[] = []) {
+    super(message);
+  }
 }
 
-export interface OverlayResponse {
-  tenant_id: string;
-  metric_id: string;
-  overlay: OverlayPayload | null;
-}
-
-async function authHeaders(): Promise<HeadersInit> {
+async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await authService.getValidToken();
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
-export async function listMetrics(): Promise<MetricListResponse> {
-  const resp = await fetch(`${API_URL}/api/v1/admin/metrics`, {
-    headers: await authHeaders(),
+  const resp = await fetch(`${API_URL}/api/v1/admin${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`listMetrics failed (${resp.status}): ${text}`);
+  if (resp.ok) return resp.json();
+  let detail: unknown = null;
+  try {
+    detail = (await resp.json()).detail;
+  } catch {
+    /* non-JSON body */
   }
-  return resp.json();
+  if (detail && typeof detail === "object" && "errors" in detail) {
+    const errors = (detail as { errors: string[] }).errors;
+    throw new AdminApiError(errors.join("; "), resp.status, errors);
+  }
+  throw new AdminApiError(typeof detail === "string" ? detail : `Request failed (${resp.status})`, resp.status);
 }
 
-export async function getOverlay(metric_id: string): Promise<OverlayResponse> {
-  const resp = await fetch(
-    `${API_URL}/api/v1/admin/overlay/${encodeURIComponent(metric_id)}`,
-    { headers: await authHeaders() },
-  );
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`getOverlay failed (${resp.status}): ${text}`);
-  }
-  return resp.json();
-}
+const path = (target: string) => `/overlay/${encodeURIComponent(target)}`;
 
-export interface PutOverlayInput {
-  measure_sql: string;
-  diff_description?: string;
-  owner?: string;
-  last_reviewed?: string;
-}
+export const listOverlays = () => call<{ tenant_id: string; overlays: Overlay[] }>("/overlays");
 
-export async function putOverlay(
-  metric_id: string,
-  input: PutOverlayInput,
-): Promise<OverlayResponse> {
-  const resp = await fetch(
-    `${API_URL}/api/v1/admin/overlay/${encodeURIComponent(metric_id)}`,
-    {
-      method: "PUT",
-      headers: await authHeaders(),
-      body: JSON.stringify(input),
-    },
-  );
-  if (!resp.ok) {
-    // Surface the validator's error detail to the UI
-    let detail = resp.statusText;
-    try {
-      const body = await resp.json();
-      if (body?.detail) detail = body.detail;
-    } catch {
-      // non-JSON body, keep statusText
-    }
-    throw new Error(detail);
-  }
-  return resp.json();
-}
+export const getOverlay = (target: string) =>
+  call<{ overlay: Overlay | null; canonical: Partial<Record<"expr" | "sql" | "default_filters", unknown>> | null }>(path(target));
 
-export async function deleteOverlay(metric_id: string): Promise<OverlayResponse> {
-  const resp = await fetch(
-    `${API_URL}/api/v1/admin/overlay/${encodeURIComponent(metric_id)}`,
-    {
-      method: "DELETE",
-      headers: await authHeaders(),
-    },
-  );
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`deleteOverlay failed (${resp.status}): ${text}`);
-  }
-  return resp.json();
-}
+export const putOverlay = (target: string, value: OverlayValue, description: string, expectedVersion: number) =>
+  call<{ overlay: Overlay }>(path(target), {
+    method: "PUT", body: JSON.stringify({ ...value, description, expected_version: expectedVersion }),
+  });
+
+export const deleteOverlay = (target: string) => call<{ overlay: null }>(path(target), { method: "DELETE" });
+
+export const overlayHistory = (target: string) => call<{ history: Overlay[] }>(`${path(target)}/history`);
+
+export const revertOverlay = (target: string, version: number, expectedVersion: number) =>
+  call<{ overlay: Overlay }>(`${path(target)}/revert`, {
+    method: "POST", body: JSON.stringify({ version, expected_version: expectedVersion }),
+  });
