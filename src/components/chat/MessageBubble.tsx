@@ -90,6 +90,10 @@ function ProvenanceBar({ artifact }: { artifact: Artifact }) {
     <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 bg-gray-50 border-t border-gray-100 text-[11px]">
       <ShieldCheck size={12} className="text-emerald-600" />
       {refs.map((r) => <span key={r} className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono">{r}</span>)}
+      {(p.overlays ?? []).map((o) => (
+        <span key={o} title="Your institution's override of the canonical definition"
+          className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 font-mono">your override {o}</span>
+      ))}
       {artifact.query && (
         <Link href={`/cards/new?contract=${encodeURIComponent(JSON.stringify(artifact.query))}&name=${encodeURIComponent(artifact.title ?? "")}`}
           className="ml-auto flex items-center gap-1 text-[#0066FF] hover:underline">
