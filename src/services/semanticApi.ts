@@ -11,9 +11,8 @@ export class SemanticApiError extends Error {
   }
 }
 
-async function headers(extra: Record<string, string> = {}): Promise<Record<string, string>> {
-  const token = await authService.getValidToken();
-  return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extra };
+function headers(extra: Record<string, string> = {}): Record<string, string> {
+  return { "Content-Type": "application/json", ...extra };
 }
 
 /** FastAPI errors arrive as {detail: string}, {detail: {error, sql}} or {detail: [validation errors]}. */
@@ -36,7 +35,7 @@ let catalogCache: { etag: string | null; catalog: SemanticCatalog } | null = nul
 /** The public catalog, revalidated with If-None-Match so unchanged catalogs cost a 304. */
 export async function getCatalog(): Promise<SemanticCatalog> {
   const extra: Record<string, string> = catalogCache?.etag ? { "If-None-Match": catalogCache.etag } : {};
-  const resp = await fetch(`${API_URL}/api/v1/semantic/catalog`, { headers: await headers(extra) });
+  const resp = await authService.authedFetch(`${API_URL}/api/v1/semantic/catalog`, { headers: headers(extra) });
   if (resp.status === 304 && catalogCache) return catalogCache.catalog;
   if (!resp.ok) return fail(resp);
   catalogCache = { etag: resp.headers.get("ETag"), catalog: await resp.json() };
@@ -44,15 +43,15 @@ export async function getCatalog(): Promise<SemanticCatalog> {
 }
 
 export async function querySemantic(contract: QueryContract): Promise<SemanticResult> {
-  const resp = await fetch(`${API_URL}/api/v1/semantic/query`, {
-    method: "POST", headers: await headers(), body: JSON.stringify(contract),
+  const resp = await authService.authedFetch(`${API_URL}/api/v1/semantic/query`, {
+    method: "POST", headers: headers(), body: JSON.stringify(contract),
   });
   return resp.ok ? resp.json() : fail(resp);
 }
 
 export async function compileSemantic(contract: QueryContract): Promise<CompiledQuery> {
-  const resp = await fetch(`${API_URL}/api/v1/semantic/compile`, {
-    method: "POST", headers: await headers(), body: JSON.stringify(contract),
+  const resp = await authService.authedFetch(`${API_URL}/api/v1/semantic/compile`, {
+    method: "POST", headers: headers(), body: JSON.stringify(contract),
   });
   return resp.ok ? resp.json() : fail(resp);
 }

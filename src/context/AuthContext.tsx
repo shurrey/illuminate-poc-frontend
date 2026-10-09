@@ -103,6 +103,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(authService.getUser());
     setIsAdmin(authService.isAdmin());
     setIsLoading(false);
+    return authService.onSessionExpired(() => {
+      setIsAuthenticated(false);
+      setUser(null);
+      setIsAdmin(false);
+      setError("Your session has expired. Please sign in again.");
+    });
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
