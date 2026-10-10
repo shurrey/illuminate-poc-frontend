@@ -136,3 +136,19 @@ describe("part_of_whole", () => {
       { category: "Using tools", value: 0 }, { category: "Not using tools", value: 3 }]);
   });
 });
+
+describe("join", () => {
+  const t = { kind: "join", queries: ["grading", "people", "inside"], on: ["course"], ratios: { pct_inside: ["inside", "graded"] } };
+  it("merges every query's columns on the key and adds ratio columns", () => {
+    const out = applyTransform(t, {
+      grading: res([{ course: "C1", graded: 10, ungraded: 2 }, { course: "C2", graded: 0, ungraded: 3 }]),
+      people: res([{ course: "C1", students: 30 }]),
+      inside: res([{ course: "C1", inside: 8 }]),
+    });
+    expect(out.columns).toEqual(["course", "graded", "ungraded", "students", "inside", "pct_inside"]);
+    expect(out.rows).toEqual([
+      { course: "C1", graded: 10, ungraded: 2, students: 30, inside: 8, pct_inside: 0.8 },
+      { course: "C2", graded: 0, ungraded: 3, students: null, inside: null, pct_inside: null },
+    ]);
+  });
+});

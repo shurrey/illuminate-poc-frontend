@@ -8,7 +8,7 @@ export interface ReportSummary { id: string; title: string; area: ReportArea; de
 export interface ReportFilterDef {
   id: string;
   label: string;
-  control: "multi_select" | "select" | "date_range";
+  control: "multi_select" | "select" | "date_range" | "number";
   dimension?: string | null;
   /** Ordered alternatives to `dimension`; a query applies the first it can reach. */
   dimensions?: { ref: string; op?: "in" | "contains" }[];
@@ -17,7 +17,7 @@ export interface ReportFilterDef {
   /** Option values the filter does not offer. */
   exclude_values?: string[];
   time_dimension?: string | null;
-  default?: "current_term" | "last_30_days" | "previous_30_days" | FilterValue[] | null;
+  default?: "current_term" | "last_30_days" | "previous_30_days" | FilterValue[] | number | null;
 }
 
 export type VisualType = "kpi" | "bar" | "line" | "combo" | "pie" | "table" | "pivot" | "heatmap" | "histogram" | "scatter" | "treemap" | "text";
