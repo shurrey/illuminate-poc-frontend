@@ -99,3 +99,13 @@ describe("per_weekday_average", () => {
     expect(out.rows[0].sessions).toBeNull();
   });
 });
+
+describe("per_weekday_average with a days query", () => {
+  it("divides by the days with data for each weekday, not the calendar days in the range", () => {
+    const out = applyTransform({ kind: "per_weekday_average", query: "main", field: "sessions", day: "day_of_week", days_query: "days" }, {
+      main: { columns: ["day_of_week", "sessions"], rows: [{ day_of_week: "Mon", sessions: 12 }, { day_of_week: "Tue", sessions: 5 }] },
+      days: { columns: ["day_of_week", "days"], rows: [{ day_of_week: "Mon", days: 4 }] },
+    });
+    expect(out.rows.map((r) => r.sessions)).toEqual([3, null]);
+  });
+});
