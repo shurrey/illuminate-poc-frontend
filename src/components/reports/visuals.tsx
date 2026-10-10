@@ -3,17 +3,11 @@
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ResultTable } from "@/components/ResultTable";
 import type { RunResult, VisualDef } from "@/types/reports";
+import { formatCells, formatValue } from "@/reports/format";
+
+export { formatValue };
 
 const COLORS = ["#0066FF", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
-
-/** ratio → percent with one decimal; percent → one decimal; other numbers grouped, at most two decimals. */
-export function formatValue(value: unknown, unit = ""): string {
-  if (value === null || value === undefined) return "—";
-  if (typeof value !== "number") return String(value);
-  if (unit === "ratio") return `${(value * 100).toFixed(1)}%`;
-  if (unit === "percent") return `${value.toFixed(1)}%`;
-  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
 
 const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : []);
 
@@ -84,7 +78,8 @@ export function PieVisual({ result, encode }: { result: Table; encode: VisualDef
 
 export function TableVisual({ result, encode }: { result: Table; encode: VisualDef["encode"] }) {
   const columns = list(encode.columns).filter((c) => result.columns.includes(c));
-  return <ResultTable columns={columns.length ? columns : result.columns} rows={result.rows} />;
+  const units = (encode.units ?? {}) as Record<string, string>;
+  return <ResultTable columns={columns.length ? columns : result.columns} rows={formatCells(result.rows, units)} />;
 }
 
 /** A grid of x × y cells shaded by value; order from x_order / y_order lists or a numeric x_sort column. */
