@@ -8,6 +8,7 @@ import { ContractCalculation } from "@/components/MetricInfo";
 import { useReportVisual } from "@/hooks/useReportVisual";
 import type { FilterValues, ReportDef, RunResult, VisualDef } from "@/types/reports";
 import { applyTransform, type Transformed } from "@/reports/transforms";
+import { wasCut } from "@/reports/truncation";
 import { BarVisual, HeatmapVisual, KpiVisual, LineVisual, PieVisual, TableVisual } from "./visuals";
 
 const isRun = (r: unknown): r is RunResult => !!r && typeof r === "object" && "rows" in r;
@@ -82,6 +83,7 @@ export function VisualCard({ report, visual, values }: { report: ReportDef; visu
         )}
       </div>
       {ignored.length > 0 && <p className="text-[11px] text-gray-400 mt-2">Not filtered by {ignored.join(", ")}</p>}
+      {runs.some(wasCut) && <p className="text-[11px] text-amber-700 mt-1">Showing the first rows only; narrow the filters to see everything.</p>}
       {modal === "info" && (
         <InfoModal title={visual.title} onClose={() => setModal(null)}>
           <ContractCalculation queries={runs.map((r) => ({ contract: r.contract, provenance: r.provenance }))} transform={shown?.words} />
