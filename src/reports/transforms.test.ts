@@ -152,3 +152,17 @@ describe("join", () => {
     ]);
   });
 });
+
+describe("join with renames and differences", () => {
+  it("renames a query's columns before merging and adds difference columns", () => {
+    const out = applyTransform({
+      kind: "join", queries: ["all", "inside"], on: ["node"], as: { inside: { attempts: "inside" } },
+      differences: { outside: ["attempts", "inside"] }, ratios: { share_inside: ["inside", "attempts"] },
+    }, {
+      all: res([{ node: "A", attempts: 10 }]),
+      inside: res([{ node: "A", attempts: 7 }]),
+    });
+    expect(out.rows).toEqual([{ node: "A", attempts: 10, inside: 7, outside: 3, share_inside: 0.7 }]);
+    expect(out.columns).toEqual(["node", "attempts", "inside", "outside", "share_inside"]);
+  });
+});

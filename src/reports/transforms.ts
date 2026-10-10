@@ -124,24 +124,33 @@ function join(t: TransformSpec, results: Results): Transformed {
   const on = (t.on as string[]).map(String);
   const names = (t.queries as string[]).map(String);
   const ratios = Object.entries((t.ratios ?? {}) as Record<string, [string, string]>);
+  const differences = Object.entries((t.differences ?? {}) as Record<string, [string, string]>);
+  // `as` renames a query's columns before merging, so two queries can return the same measure.
+  const renames = (t.as ?? {}) as Record<string, Record<string, string>>;
+  const renamed = (n: string, c: string) => renames[n]?.[c] ?? c;
   const columns: string[] = [...on];
-  for (const n of names) for (const c of results[n]?.columns ?? []) if (!columns.includes(c)) columns.push(c);
+  for (const n of names) for (const c of results[n]?.columns ?? []) if (!columns.includes(renamed(n, c))) columns.push(renamed(n, c));
   const merged = new Map<string, Record<string, unknown>>();
   for (const n of names) {
     for (const r of results[n]?.rows ?? []) {
       const key = JSON.stringify(on.map((c) => r[c]));
-      merged.set(key, { ...(merged.get(key) ?? {}), ...r });
+      const row = Object.fromEntries(Object.entries(r).map(([c, v]) => [renamed(n, c), v]));
+      merged.set(key, { ...(merged.get(key) ?? {}), ...row });
     }
   }
   const rows = [...merged.values()].map((r) => {
     const full: Record<string, unknown> = Object.fromEntries(columns.map((c) => [c, r[c] ?? null]));
+    for (const [name, [a, b]] of differences) {
+      const x = num(full[a]);
+      full[name] = x === null ? null : x - (num(full[b]) ?? 0);
+    }
     for (const [name, [numerator, denominator]] of ratios) {
       const a = num(full[numerator]), b = num(full[denominator]);
       full[name] = a !== null && b ? a / b : null;
     }
     return full;
   });
-  return { columns: [...columns, ...ratios.map(([n]) => n)], rows, words: `Combined on ${on.join(", ")}` };
+  return { columns: [...columns, ...differences.map(([n]) => n), ...ratios.map(([n]) => n)], rows, words: `Combined on ${on.join(", ")}` };
 }
 
 const KINDS: Record<string, (t: TransformSpec, r: Results) => Transformed> = {
