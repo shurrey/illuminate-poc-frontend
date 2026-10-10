@@ -120,7 +120,32 @@ function partOfWhole(t: TransformSpec, results: Results): Transformed {
   };
 }
 
+function join(t: TransformSpec, results: Results): Transformed {
+  const on = (t.on as string[]).map(String);
+  const names = (t.queries as string[]).map(String);
+  const ratios = Object.entries((t.ratios ?? {}) as Record<string, [string, string]>);
+  const columns: string[] = [...on];
+  for (const n of names) for (const c of results[n]?.columns ?? []) if (!columns.includes(c)) columns.push(c);
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const n of names) {
+    for (const r of results[n]?.rows ?? []) {
+      const key = JSON.stringify(on.map((c) => r[c]));
+      merged.set(key, { ...(merged.get(key) ?? {}), ...r });
+    }
+  }
+  const rows = [...merged.values()].map((r) => {
+    const full: Record<string, unknown> = Object.fromEntries(columns.map((c) => [c, r[c] ?? null]));
+    for (const [name, [numerator, denominator]] of ratios) {
+      const a = num(full[numerator]), b = num(full[denominator]);
+      full[name] = a !== null && b ? a / b : null;
+    }
+    return full;
+  });
+  return { columns: [...columns, ...ratios.map(([n]) => n)], rows, words: `Combined on ${on.join(", ")}` };
+}
+
 const KINDS: Record<string, (t: TransformSpec, r: Results) => Transformed> = {
+  join,
   average_by: averageBy,
   part_of_whole: partOfWhole,
   side_by_side: sideBySide,

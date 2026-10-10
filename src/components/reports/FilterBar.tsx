@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { querySemantic } from "@/services/semanticApi";
-import type { SemanticCatalog } from "@/types/semantic";
+import type { FilterValue, SemanticCatalog } from "@/types/semantic";
 import { optionsDimension, optionValues } from "@/reports/cascade";
 import type { DateRangeValue, FilterValues, ReportFilterDef } from "@/types/reports";
 
@@ -78,7 +78,16 @@ export function FilterBar({ filters, catalog, values, onChange, onReset }: {
   if (filters.length === 0) return null;
   return (
     <div className="flex flex-wrap items-end gap-4 bg-white rounded-xl border border-gray-200 p-4">
-      {filters.map((f) => f.control === "date_range"
+      {filters.map((f) => f.control === "number"
+        ? (
+          <label key={f.id} className="flex flex-col gap-1 text-xs text-gray-500">
+            {f.label}
+            <input type="number" min={0} value={String(((values[f.id] as FilterValue[] | undefined) ?? [f.default ?? ""])[0])}
+              onChange={(e) => onChange(f.id, e.target.value === "" ? [] : [e.target.value])}
+              className="w-28 px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-800" />
+          </label>
+        )
+        : f.control === "date_range"
         ? <DateControl key={f.id} filter={f} value={(values[f.id] as DateRangeValue) ?? {}} onChange={(v) => onChange(f.id, v)} />
         : <SelectControl key={f.id} filter={f} catalog={catalog} value={((values[f.id] as string[]) ?? []).map(String)}
             parents={parentsOf(f, filters, values)} onChange={(v) => onChange(f.id, v)} />)}
