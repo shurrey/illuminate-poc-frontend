@@ -109,3 +109,30 @@ describe("per_weekday_average with a days query", () => {
     expect(out.rows.map((r) => r.sessions)).toEqual([3, null]);
   });
 });
+
+describe("average_by", () => {
+  it("averages a field over the rows that share the grouping values", () => {
+    const out = applyTransform({ kind: "average_by", query: "main", field: "people", by: ["day", "slot"] }, {
+      main: res([
+        { date: "2026-10-05", day: "Mon", slot: "9 AM", people: 10 },
+        { date: "2026-10-12", day: "Mon", slot: "9 AM", people: 20 },
+        { date: "2026-10-06", day: "Tue", slot: "9 AM", people: 7 },
+      ]),
+    });
+    expect(out.columns).toEqual(["day", "slot", "people"]);
+    expect(out.rows).toEqual([{ day: "Mon", slot: "9 AM", people: 15 }, { day: "Tue", slot: "9 AM", people: 7 }]);
+  });
+});
+
+describe("part_of_whole", () => {
+  const t = { kind: "part_of_whole", whole: "all", part: "using", field: "courses", labels: ["Using tools", "Not using tools"] };
+  it("splits the whole into the part and the remainder", () => {
+    const out = applyTransform(t, { all: res([{ courses: 10 }]), using: res([{ courses: 4 }]) });
+    expect(out.rows).toEqual([{ category: "Using tools", value: 4 }, { category: "Not using tools", value: 6 }]);
+  });
+  it("never gives a negative remainder, and treats a missing part as zero", () => {
+    expect(applyTransform(t, { all: res([{ courses: 3 }]), using: res([{ courses: 5 }]) }).rows[1].value).toBe(0);
+    expect(applyTransform(t, { all: res([{ courses: 3 }]), using: res([]) }).rows).toEqual([
+      { category: "Using tools", value: 0 }, { category: "Not using tools", value: 3 }]);
+  });
+});
