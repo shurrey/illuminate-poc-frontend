@@ -14,6 +14,8 @@ export interface ReportFilterDef {
   dimensions?: { ref: string; op?: "in" | "contains" }[];
   /** Filters whose values narrow this filter's options. */
   depends_on?: string[];
+  /** Option values the filter does not offer. */
+  exclude_values?: string[];
   time_dimension?: string | null;
   default?: "current_term" | "last_30_days" | "previous_30_days" | FilterValue[] | null;
 }
