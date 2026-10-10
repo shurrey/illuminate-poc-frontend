@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { querySemantic } from "@/services/semanticApi";
 import type { FilterValue, SemanticCatalog } from "@/types/semantic";
-import { optionsDimension, optionValues } from "@/reports/cascade";
+import { OPTION_LIMIT, offerSearch, optionFilters, optionsDimension, optionValues } from "@/reports/cascade";
 import type { DateRangeValue, FilterValues, ReportFilterDef } from "@/types/reports";
 
-/** The distinct values of a filter's dimension (via its dataset's first measure), narrowed by its parents' values. */
-function useOptions(filter: ReportFilterDef, catalog: SemanticCatalog | null, parents: { dimension: string; values: string[] }[]): string[] | null {
+/** The distinct values of a filter's dimension (via its dataset's first measure), narrowed by its parents' values
+ *  and by `search` when given. */
+function useOptions(filter: ReportFilterDef, catalog: SemanticCatalog | null, parents: { dimension: string; values: string[] }[],
+                    search: string): string[] | null {
   const [options, setOptions] = useState<string[] | null>(null);
   const dimension = optionsDimension(filter);
   const parentKey = JSON.stringify(parents);
@@ -18,13 +20,12 @@ function useOptions(filter: ReportFilterDef, catalog: SemanticCatalog | null, pa
     const measure = catalog.datasets.find((d) => d.id === datasetId)?.measures[0]?.name;
     if (!measure) return;
     let live = true;
-    const filters = (JSON.parse(parentKey) as { dimension: string; values: string[] }[])
-      .map((p) => ({ dimension: p.dimension, op: "in" as const, values: p.values }));
-    querySemantic({ measures: [`${datasetId}:${measure}`], dimensions: [dimension], filters, order_by: [{ field: name, direction: "asc" }], limit: 1000 })
+    const filters = optionFilters(JSON.parse(parentKey), dimension, search);
+    querySemantic({ measures: [`${datasetId}:${measure}`], dimensions: [dimension], filters, order_by: [{ field: name, direction: "asc" }], limit: OPTION_LIMIT })
       .then((r) => live && setOptions(optionValues(r.rows, name, filter.exclude_values)))
       .catch(() => live && setOptions([]));
     return () => { live = false; };
-  }, [dimension, catalog, parentKey, filter.exclude_values]);
+  }, [dimension, catalog, parentKey, filter.exclude_values, search]);
   return options;
 }
 
@@ -32,11 +33,21 @@ function SelectControl({ filter, catalog, value, parents, onChange }: {
   filter: ReportFilterDef; catalog: SemanticCatalog | null; value: string[];
   parents: { dimension: string; values: string[] }[]; onChange: (v: string[]) => void;
 }) {
-  const options = useOptions(filter, catalog, parents);
+  const [typed, setTyped] = useState("");
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(typed), 300);
+    return () => clearTimeout(t);
+  }, [typed]);
+  const options = useOptions(filter, catalog, parents, search);
   const all = [...new Set([...value, ...(options ?? [])])];
   return (
     <label className="flex flex-col gap-1 text-xs text-gray-500">
       {filter.label}
+      {offerSearch(options?.length ?? 0, typed) && (
+        <input type="search" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search…"
+          className="min-w-44 px-2 py-1 rounded-lg border border-gray-200 text-sm text-gray-800" />
+      )}
       <select multiple={filter.control === "multi_select"} value={filter.control === "multi_select" ? value : value[0] ?? ""}
         onChange={(e) => onChange(Array.from(e.target.selectedOptions).map((o) => o.value).filter(Boolean))}
         className={`min-w-44 px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-800 bg-white ${filter.control === "multi_select" ? "h-20" : ""}`}>
