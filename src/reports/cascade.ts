@@ -29,3 +29,21 @@ export function optionValues(rows: Record<string, unknown>[], column: string, ex
   return rows.map((r) => r[column]).filter((v) => v !== null && v !== undefined && v !== "")
     .map(String).filter((v) => v !== "null" && !exclude.includes(v));
 }
+
+export const OPTION_LIMIT = 1000;
+
+type OptionFilter = { dimension: string; op: "in" | "contains"; values: string[] };
+
+/** Filters for loading a filter's options: its parents' values, plus a case-insensitive substring when searching. */
+export function optionFilters(parents: { dimension: string; values: string[] }[], dimension: string, search: string): OptionFilter[] {
+  const term = search.trim();
+  return [
+    ...parents.map((p) => ({ dimension: p.dimension, op: "in" as const, values: p.values })),
+    ...(term ? [{ dimension, op: "contains" as const, values: [term] }] : []),
+  ];
+}
+
+/** True when the option list may be cut off, or a search is already narrowing it. */
+export function offerSearch(loaded: number, search: string): boolean {
+  return loaded >= OPTION_LIMIT || search.trim() !== "";
+}

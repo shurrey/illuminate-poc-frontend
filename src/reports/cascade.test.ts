@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { withDependantsCleared } from "./cascade";
+import { offerSearch, optionFilters, withDependantsCleared } from "./cascade";
 import type { ReportFilterDef } from "@/types/reports";
 
 const level = (n: number, parents: number[]): ReportFilterDef => ({
@@ -24,5 +24,24 @@ describe("optionValues", () => {
   it("drops empty values and the filter's excluded placeholders", () => {
     const rows = [{ ih: "-" }, { ih: "All Nodes" }, { ih: "Nursing" }, { ih: null }, { ih: "Art" }];
     expect(optionValues(rows, "ih", ["-", "All Nodes"])).toEqual(["Nursing", "Art"]);
+  });
+});
+
+describe("optionFilters", () => {
+  it("narrows options by the parents' values and, when searching, by a substring of the option", () => {
+    const parents = [{ dimension: "dataset.courses.v1:ih_level_1", values: ["Arts"] }];
+    expect(optionFilters(parents, "dataset.courses.v1:course_number", "")).toEqual([
+      { dimension: "dataset.courses.v1:ih_level_1", op: "in", values: ["Arts"] }]);
+    expect(optionFilters(parents, "dataset.courses.v1:course_number", "  bio ")).toEqual([
+      { dimension: "dataset.courses.v1:ih_level_1", op: "in", values: ["Arts"] },
+      { dimension: "dataset.courses.v1:course_number", op: "contains", values: ["bio"] }]);
+  });
+});
+
+describe("offerSearch", () => {
+  it("offers a search box once options reach the load limit, and keeps it while a search is typed", () => {
+    expect(offerSearch(999, "")).toBe(false);
+    expect(offerSearch(1000, "")).toBe(true);
+    expect(offerSearch(3, "bio")).toBe(true);
   });
 });
