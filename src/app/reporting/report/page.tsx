@@ -10,6 +10,7 @@ import { useSemanticCatalog } from "@/hooks/useSemanticCatalog";
 import { getReport } from "@/services/reportsApi";
 import type { FilterValues, ReportDef } from "@/types/reports";
 import { urlFor, valuesFromUrl } from "@/reports/urlState";
+import { withDependantsCleared } from "@/reports/cascade";
 
 function ReportPage() {
   const params = useSearchParams();
@@ -44,7 +45,7 @@ function ReportPage() {
         <p className="text-gray-500 mt-1">{report.description}</p>
       </div>
       <FilterBar filters={report.filters} catalog={catalog} values={values}
-        onChange={(fid, v) => setValues({ ...values, [fid]: v })} onReset={() => setValues(loaded!.defaults)} />
+        onChange={(fid, v) => setValues(withDependantsCleared(report.filters, values, fid, v))} onReset={() => setValues(loaded!.defaults)} />
       <ReportView report={report} values={values} />
     </div>
   );

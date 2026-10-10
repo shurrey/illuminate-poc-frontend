@@ -86,3 +86,46 @@ export function TableVisual({ result, encode }: { result: Table; encode: VisualD
   const columns = list(encode.columns).filter((c) => result.columns.includes(c));
   return <ResultTable columns={columns.length ? columns : result.columns} rows={result.rows} />;
 }
+
+/** A grid of x × y cells shaded by value; order from x_order / y_order lists or a numeric x_sort column. */
+export function HeatmapVisual({ result, encode }: { result: Table; encode: VisualDef["encode"] }) {
+  const x = String(encode.x), y = String(encode.y), value = String(encode.value);
+  const ordered = (key: string, order: unknown, sortBy?: string) => {
+    const seen = [...new Set(result.rows.map((r) => String(r[key])))];
+    if (Array.isArray(order)) return [...order.map(String).filter((o) => seen.includes(o)), ...seen.filter((s) => !order.map(String).includes(s))];
+    if (sortBy) {
+      const rank = new Map(result.rows.map((r) => [String(r[key]), Number(r[sortBy])]));
+      return seen.sort((a, b) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0));
+    }
+    return seen;
+  };
+  const xs = ordered(x, encode.x_order, encode.x_sort ? String(encode.x_sort) : undefined);
+  const ys = ordered(y, encode.y_order);
+  const cell = new Map(result.rows.map((r) => [`${r[x]}|${r[y]}`, r[value]]));
+  const max = Math.max(0, ...result.rows.map((r) => (typeof r[value] === "number" ? (r[value] as number) : 0)));
+  return (
+    <div className="overflow-x-auto">
+      <table className="text-[10px] border-separate border-spacing-0.5">
+        <thead>
+          <tr><th />{xs.map((c) => <th key={c} className="font-normal text-gray-500 px-1 whitespace-nowrap">{c}</th>)}</tr>
+        </thead>
+        <tbody>
+          {ys.map((r) => (
+            <tr key={r}>
+              <th className="font-normal text-gray-500 pr-2 text-right whitespace-nowrap">{r}</th>
+              {xs.map((c) => {
+                const v = cell.get(`${c}|${r}`);
+                const share = typeof v === "number" && max > 0 ? v / max : 0;
+                return (
+                  <td key={c} title={`${r} ${c}: ${formatValue(v)}`}
+                    className="w-8 h-6 rounded-sm" style={{ backgroundColor: `rgba(0, 102, 255, ${0.08 + share * 0.82})` }} />
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-[10px] text-gray-400 mt-1">Darker is more; highest {formatValue(max)}.</p>
+    </div>
+  );
+}

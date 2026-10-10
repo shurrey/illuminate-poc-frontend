@@ -10,8 +10,12 @@ export interface ReportFilterDef {
   label: string;
   control: "multi_select" | "select" | "date_range";
   dimension?: string | null;
+  /** Ordered alternatives to `dimension`; a query applies the first it can reach. */
+  dimensions?: { ref: string; op?: "in" | "contains" }[];
+  /** Filters whose values narrow this filter's options. */
+  depends_on?: string[];
   time_dimension?: string | null;
-  default?: "current_term" | "last_30_days" | FilterValue[] | null;
+  default?: "current_term" | "last_30_days" | "previous_30_days" | FilterValue[] | null;
 }
 
 export type VisualType = "kpi" | "bar" | "line" | "combo" | "pie" | "table" | "pivot" | "heatmap" | "histogram" | "scatter" | "treemap" | "text";
@@ -21,7 +25,7 @@ export interface VisualDef {
   type: VisualType;
   title: string;
   text: string;
-  queries: Record<string, QueryContract & { time_dimension?: string }>;
+  queries: Record<string, QueryContract & { time_dimension?: string; date_filter?: string }>;
   transform?: { kind: string; [key: string]: unknown } | null;
   encode: Record<string, unknown>;
   filters_ignored: string[];

@@ -1,6 +1,7 @@
 /** Client transforms over a visual's query results; each also says in words what it did, for Info. */
 type Rows = Record<string, unknown>[];
-export type Results = Record<string, { columns: string[]; rows: Rows }>;
+/** A query's result; `contract` is the merged contract the server ran, when available. */
+export type Results = Record<string, { columns: string[]; rows: Rows; contract?: { time_range?: { start?: string; end?: string } | null } }>;
 export interface Transformed { columns: string[]; rows: Rows; words: string }
 export type TransformSpec = { kind: string; [key: string]: unknown };
 
@@ -49,7 +50,47 @@ function topNOther(t: TransformSpec, results: Results): Transformed {
   return { columns, rows: out, words: `Top ${n} by ${field}, the rest combined as Other` };
 }
 
+function sideBySide(t: TransformSpec, results: Results): Transformed {
+  const on = String(t.on), field = String(t.field);
+  const labels = Object.entries(t.queries as Record<string, string>);
+  const merged = new Map<unknown, Record<string, unknown>>();
+  for (const [label, query] of labels) {
+    for (const row of results[query]?.rows ?? []) {
+      const key = row[on];
+      if (!merged.has(key)) merged.set(key, { [on]: key, ...Object.fromEntries(labels.map(([l]) => [l, null])) });
+      merged.get(key)![label] = row[field] ?? null;
+    }
+  }
+  return { columns: [on, ...labels.map(([l]) => l)], rows: [...merged.values()], words: `${labels.map(([l]) => l).join(" vs ")}, side by side` };
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** How many of each weekday (Sun..Sat) fall in [start, end], inclusive. */
+function weekdayCounts(start: string, end: string): Record<string, number> {
+  const counts: Record<string, number> = Object.fromEntries(WEEKDAYS.map((d) => [d, 0]));
+  for (let d = new Date(`${start}T00:00:00Z`); d <= new Date(`${end}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+    counts[WEEKDAYS[d.getUTCDay()]]++;
+  }
+  return counts;
+}
+
+function perWeekdayAverage(t: TransformSpec, results: Results): Transformed {
+  const result = results[String(t.query)];
+  const field = String(t.field), day = String(t.day);
+  const range = result?.contract?.time_range;
+  const counts = range?.start && range?.end ? weekdayCounts(range.start, range.end) : null;
+  const rows = (result?.rows ?? []).map((r) => {
+    const n = counts?.[String(r[day]).slice(0, 3)] ?? 0;
+    const v = num(r[field]);
+    return { ...r, [field]: n && v !== null ? round(v / n) : null };
+  });
+  return { columns: result?.columns ?? [], rows, words: "Average per day of that weekday in the date range" };
+}
+
 const KINDS: Record<string, (t: TransformSpec, r: Results) => Transformed> = {
+  side_by_side: sideBySide,
+  per_weekday_average: perWeekdayAverage,
   period_over_period: periodOverPeriod,
   percent_of_total: percentOfTotal,
   unpivot,
