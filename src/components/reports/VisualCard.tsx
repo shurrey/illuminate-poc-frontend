@@ -8,7 +8,7 @@ import { ContractCalculation } from "@/components/MetricInfo";
 import { useReportVisual } from "@/hooks/useReportVisual";
 import type { FilterValues, ReportDef, RunResult, VisualDef } from "@/types/reports";
 import { applyTransform, type Transformed } from "@/reports/transforms";
-import { BarVisual, KpiVisual, LineVisual, PieVisual, TableVisual } from "./visuals";
+import { BarVisual, HeatmapVisual, KpiVisual, LineVisual, PieVisual, TableVisual } from "./visuals";
 
 const isRun = (r: unknown): r is RunResult => !!r && typeof r === "object" && "rows" in r;
 
@@ -19,6 +19,7 @@ function Body({ visual, result }: { visual: VisualDef; result: Pick<RunResult, "
     case "line": return <LineVisual result={result} encode={visual.encode} />;
     case "pie": return <PieVisual result={result} encode={visual.encode} />;
     case "table": return <TableVisual result={result} encode={visual.encode} />;
+    case "heatmap": return <HeatmapVisual result={result} encode={visual.encode} />;
     default: return <p className="text-sm text-gray-400">This visual type is not available yet.</p>;
   }
 }
@@ -41,7 +42,7 @@ export function VisualCard({ report, visual, values }: { report: ReportDef; visu
       transformError = e instanceof Error ? e.message : "This visual could not be calculated";
     }
   }
-  const wide = visual.type === "table" || visual.type === "line";
+  const wide = visual.type === "table" || visual.type === "line" || visual.type === "heatmap";
 
   if (visual.type === "text") {
     return (

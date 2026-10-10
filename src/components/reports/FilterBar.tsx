@@ -4,29 +4,35 @@ import { useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { querySemantic } from "@/services/semanticApi";
 import type { SemanticCatalog } from "@/types/semantic";
+import { optionsDimension } from "@/reports/cascade";
 import type { DateRangeValue, FilterValues, ReportFilterDef } from "@/types/reports";
 
-/** The distinct values of a filter's dimension, via its dataset's first measure. */
-function useOptions(filter: ReportFilterDef, catalog: SemanticCatalog | null): string[] | null {
+/** The distinct values of a filter's dimension (via its dataset's first measure), narrowed by its parents' values. */
+function useOptions(filter: ReportFilterDef, catalog: SemanticCatalog | null, parents: { dimension: string; values: string[] }[]): string[] | null {
   const [options, setOptions] = useState<string[] | null>(null);
+  const dimension = optionsDimension(filter);
+  const parentKey = JSON.stringify(parents);
   useEffect(() => {
-    if (!catalog || !filter.dimension) return;
-    const [datasetId, name] = filter.dimension.split(":");
+    if (!catalog || !dimension) return;
+    const [datasetId, name] = dimension.split(":");
     const measure = catalog.datasets.find((d) => d.id === datasetId)?.measures[0]?.name;
     if (!measure) return;
     let live = true;
-    querySemantic({ measures: [`${datasetId}:${measure}`], dimensions: [filter.dimension], order_by: [{ field: name, direction: "asc" }], limit: 1000 })
+    const filters = (JSON.parse(parentKey) as { dimension: string; values: string[] }[])
+      .map((p) => ({ dimension: p.dimension, op: "in" as const, values: p.values }));
+    querySemantic({ measures: [`${datasetId}:${measure}`], dimensions: [dimension], filters, order_by: [{ field: name, direction: "asc" }], limit: 1000 })
       .then((r) => live && setOptions(r.rows.map((row) => String(row[name])).filter((v) => v && v !== "null")))
       .catch(() => live && setOptions([]));
     return () => { live = false; };
-  }, [filter.dimension, catalog]);
+  }, [dimension, catalog, parentKey]);
   return options;
 }
 
-function SelectControl({ filter, catalog, value, onChange }: {
-  filter: ReportFilterDef; catalog: SemanticCatalog | null; value: string[]; onChange: (v: string[]) => void;
+function SelectControl({ filter, catalog, value, parents, onChange }: {
+  filter: ReportFilterDef; catalog: SemanticCatalog | null; value: string[];
+  parents: { dimension: string; values: string[] }[]; onChange: (v: string[]) => void;
 }) {
-  const options = useOptions(filter, catalog);
+  const options = useOptions(filter, catalog, parents);
   const all = [...new Set([...value, ...(options ?? [])])];
   return (
     <label className="flex flex-col gap-1 text-xs text-gray-500">
@@ -56,6 +62,15 @@ function DateControl({ filter, value, onChange }: { filter: ReportFilterDef; val
   );
 }
 
+function parentsOf(f: ReportFilterDef, filters: ReportFilterDef[], values: FilterValues) {
+  return (f.depends_on ?? []).flatMap((id) => {
+    const parent = filters.find((p) => p.id === id);
+    const dimension = parent && optionsDimension(parent);
+    const v = values[id];
+    return dimension && Array.isArray(v) && v.length ? [{ dimension, values: v.map(String) }] : [];
+  });
+}
+
 export function FilterBar({ filters, catalog, values, onChange, onReset }: {
   filters: ReportFilterDef[]; catalog: SemanticCatalog | null; values: FilterValues;
   onChange: (id: string, value: FilterValues[string]) => void; onReset: () => void;
@@ -65,7 +80,8 @@ export function FilterBar({ filters, catalog, values, onChange, onReset }: {
     <div className="flex flex-wrap items-end gap-4 bg-white rounded-xl border border-gray-200 p-4">
       {filters.map((f) => f.control === "date_range"
         ? <DateControl key={f.id} filter={f} value={(values[f.id] as DateRangeValue) ?? {}} onChange={(v) => onChange(f.id, v)} />
-        : <SelectControl key={f.id} filter={f} catalog={catalog} value={((values[f.id] as string[]) ?? []).map(String)} onChange={(v) => onChange(f.id, v)} />)}
+        : <SelectControl key={f.id} filter={f} catalog={catalog} value={((values[f.id] as string[]) ?? []).map(String)}
+            parents={parentsOf(f, filters, values)} onChange={(v) => onChange(f.id, v)} />)}
       <button onClick={onReset} className="flex items-center gap-1 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 ml-auto">
         <RotateCcw size={13} /> Reset
       </button>

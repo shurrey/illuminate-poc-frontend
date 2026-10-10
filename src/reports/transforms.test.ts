@@ -69,3 +69,33 @@ describe("top_n_other", () => {
 it("rejects an unknown kind", () => {
   expect(() => applyTransform({ kind: "nope" }, {})).toThrow("Unknown transform nope");
 });
+
+describe("side_by_side", () => {
+  const t = { kind: "side_by_side", queries: { Primary: "current", Comparison: "previous" }, on: "role", field: "sessions" };
+  it("merges queries on the key, one column per label, keeping rows found in only one", () => {
+    const out = applyTransform(t, {
+      current: res([{ role: "Student", sessions: 10 }, { role: "Staff", sessions: 4 }]),
+      previous: res([{ role: "Student", sessions: 8 }, { role: "Guest", sessions: 1 }]),
+    });
+    expect(out.columns).toEqual(["role", "Primary", "Comparison"]);
+    expect(out.rows).toEqual([
+      { role: "Student", Primary: 10, Comparison: 8 },
+      { role: "Staff", Primary: 4, Comparison: null },
+      { role: "Guest", Primary: null, Comparison: 1 },
+    ]);
+  });
+});
+
+describe("per_weekday_average", () => {
+  const ranged = (rows: Record<string, unknown>[], start: string, end: string) =>
+    ({ columns: Object.keys(rows[0] ?? {}), rows, contract: { time_range: { dimension: "slot_date", start, end } } });
+  const t = { kind: "per_weekday_average", query: "main", field: "sessions", day: "day_of_week" };
+  it("divides each weekday by how many of it fall in the range", () => {
+    const out = applyTransform(t, { main: ranged([{ day_of_week: "Mon", sessions: 10 }, { day_of_week: "Thu", sessions: 3 }], "2026-10-01", "2026-10-14") });
+    expect(out.rows.map((r) => r.sessions)).toEqual([5, 1.5]);
+  });
+  it("gives no value for a weekday the range does not contain", () => {
+    const out = applyTransform(t, { main: ranged([{ day_of_week: "Mon", sessions: 10 }], "2026-10-01", "2026-10-03") });
+    expect(out.rows[0].sessions).toBeNull();
+  });
+});
