@@ -42,8 +42,6 @@ const navSections: NavSection[] = [
       { label: "Learning", href: "/reporting?area=learning" },
       { label: "Teaching", href: "/reporting?area=teaching" },
       { label: "Leading", href: "/reporting?area=leading" },
-      { label: "Data Q&A", href: "/reporting?area=data-qa" },
-      { label: "Custom Reports", href: "/reporting?area=custom" },
     ],
   },
   { label: "Data Dictionary", href: "/developer", icon: BookOpen },
