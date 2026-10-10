@@ -166,3 +166,16 @@ describe("join with renames and differences", () => {
     expect(out.columns).toEqual(["node", "attempts", "inside", "outside", "share_inside"]);
   });
 });
+
+describe("join, left and fill_zero", () => {
+  it("keeps only the first query's rows and fills missing counts with zero", () => {
+    const out = applyTransform({
+      kind: "join", queries: ["grading", "inside"], on: ["course"], left: true, fill_zero: ["inside"],
+      ratios: { share: ["inside", "graded"] },
+    }, {
+      grading: res([{ course: "C1", graded: 4 }]),
+      inside: res([{ course: "C9", inside: 2 }]),
+    });
+    expect(out.rows).toEqual([{ course: "C1", graded: 4, inside: 0, share: 0 }]);
+  });
+});
