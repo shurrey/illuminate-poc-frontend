@@ -91,7 +91,38 @@ function perWeekdayAverage(t: TransformSpec, results: Results): Transformed {
   return { columns: result?.columns ?? [], rows, words: t.days_query ? "Average per day with data on that weekday" : "Average per day of that weekday in the date range" };
 }
 
+function averageBy(t: TransformSpec, results: Results): Transformed {
+  const field = String(t.field), by = (t.by as string[]).map(String);
+  const groups = new Map<string, { key: Record<string, unknown>; sum: number; n: number }>();
+  for (const r of results[String(t.query)]?.rows ?? []) {
+    const id = JSON.stringify(by.map((b) => r[b]));
+    const g = groups.get(id) ?? { key: Object.fromEntries(by.map((b) => [b, r[b]])), sum: 0, n: 0 };
+    const v = num(r[field]);
+    if (v !== null) { g.sum += v; g.n++; }
+    groups.set(id, g);
+  }
+  return {
+    columns: [...by, field],
+    rows: [...groups.values()].map((g) => ({ ...g.key, [field]: g.n ? round(g.sum / g.n) : null })),
+    words: `Average of ${field} per ${by.join(" and ")}`,
+  };
+}
+
+function partOfWhole(t: TransformSpec, results: Results): Transformed {
+  const field = String(t.field);
+  const [partLabel, restLabel] = (t.labels as string[]).map(String);
+  const whole = num(results[String(t.whole)]?.rows[0]?.[field]) ?? 0;
+  const part = num(results[String(t.part)]?.rows[0]?.[field]) ?? 0;
+  return {
+    columns: ["category", "value"],
+    rows: [{ category: partLabel, value: part }, { category: restLabel, value: Math.max(whole - part, 0) }],
+    words: `${partLabel} out of the total, and the rest`,
+  };
+}
+
 const KINDS: Record<string, (t: TransformSpec, r: Results) => Transformed> = {
+  average_by: averageBy,
+  part_of_whole: partOfWhole,
   side_by_side: sideBySide,
   per_weekday_average: perWeekdayAverage,
   period_over_period: periodOverPeriod,
