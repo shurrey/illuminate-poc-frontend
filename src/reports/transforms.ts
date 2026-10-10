@@ -130,16 +130,20 @@ function join(t: TransformSpec, results: Results): Transformed {
   const renamed = (n: string, c: string) => renames[n]?.[c] ?? c;
   const columns: string[] = [...on];
   for (const n of names) for (const c of results[n]?.columns ?? []) if (!columns.includes(renamed(n, c))) columns.push(renamed(n, c));
+  // left: only the first query's keys are kept; fill_zero: counts absent from a joined query read as 0.
+  const left = !!t.left;
+  const fillZero = ((t.fill_zero ?? []) as string[]).map(String);
   const merged = new Map<string, Record<string, unknown>>();
-  for (const n of names) {
+  names.forEach((n, i) => {
     for (const r of results[n]?.rows ?? []) {
       const key = JSON.stringify(on.map((c) => r[c]));
+      if (left && i > 0 && !merged.has(key)) continue;
       const row = Object.fromEntries(Object.entries(r).map(([c, v]) => [renamed(n, c), v]));
       merged.set(key, { ...(merged.get(key) ?? {}), ...row });
     }
-  }
+  });
   const rows = [...merged.values()].map((r) => {
-    const full: Record<string, unknown> = Object.fromEntries(columns.map((c) => [c, r[c] ?? null]));
+    const full: Record<string, unknown> = Object.fromEntries(columns.map((c) => [c, r[c] ?? (fillZero.includes(c) ? 0 : null)]));
     for (const [name, [a, b]] of differences) {
       const x = num(full[a]);
       full[name] = x === null ? null : x - (num(full[b]) ?? 0);
