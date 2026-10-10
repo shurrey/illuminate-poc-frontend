@@ -79,13 +79,16 @@ function perWeekdayAverage(t: TransformSpec, results: Results): Transformed {
   const result = results[String(t.query)];
   const field = String(t.field), day = String(t.day);
   const range = result?.contract?.time_range;
-  const counts = range?.start && range?.end ? weekdayCounts(range.start, range.end) : null;
+  // A days query (days with data per weekday) is the divisor when given; otherwise calendar days in the range.
+  const counts = t.days_query
+    ? Object.fromEntries((results[String(t.days_query)]?.rows ?? []).map((r) => [String(r[day]).slice(0, 3), num(r.days) ?? 0]))
+    : range?.start && range?.end ? weekdayCounts(range.start, range.end) : null;
   const rows = (result?.rows ?? []).map((r) => {
     const n = counts?.[String(r[day]).slice(0, 3)] ?? 0;
     const v = num(r[field]);
     return { ...r, [field]: n && v !== null ? round(v / n) : null };
   });
-  return { columns: result?.columns ?? [], rows, words: "Average per day of that weekday in the date range" };
+  return { columns: result?.columns ?? [], rows, words: t.days_query ? "Average per day with data on that weekday" : "Average per day of that weekday in the date range" };
 }
 
 const KINDS: Record<string, (t: TransformSpec, r: Results) => Transformed> = {
