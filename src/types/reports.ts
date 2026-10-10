@@ -8,16 +8,18 @@ export interface ReportSummary { id: string; title: string; area: ReportArea; de
 export interface ReportFilterDef {
   id: string;
   label: string;
-  control: "multi_select" | "select" | "date_range" | "number";
+  control: "multi_select" | "select" | "date_range" | "number" | "choice";
+  /** A choice's fixed options. */
+  options?: string[];
   dimension?: string | null;
   /** Ordered alternatives to `dimension`; a query applies the first it can reach. */
-  dimensions?: { ref: string; op?: "in" | "contains" }[];
+  dimensions?: { ref: string; op?: "in" | "contains" | "path" }[];
   /** Filters whose values narrow this filter's options. */
   depends_on?: string[];
   /** Option values the filter does not offer. */
   exclude_values?: string[];
   time_dimension?: string | null;
-  default?: "current_term" | "last_30_days" | "previous_30_days" | FilterValue[] | number | null;
+  default?: "current_term" | "last_30_days" | "previous_30_days" | "last_month" | "month_before_last" | FilterValue[] | number | null;
 }
 
 export type VisualType = "kpi" | "bar" | "line" | "combo" | "pie" | "table" | "pivot" | "heatmap" | "histogram" | "scatter" | "treemap" | "text";

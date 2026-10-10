@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { querySemantic } from "@/services/semanticApi";
 import type { FilterValue, SemanticCatalog } from "@/types/semantic";
+import { choiceValue } from "@/reports/choice";
 import { OPTION_LIMIT, offerSearch, optionFilters, optionsDimension, optionValues } from "@/reports/cascade";
 import type { DateRangeValue, FilterValues, ReportFilterDef } from "@/types/reports";
 
@@ -89,7 +90,17 @@ export function FilterBar({ filters, catalog, values, onChange, onReset }: {
   if (filters.length === 0) return null;
   return (
     <div className="flex flex-wrap items-end gap-4 bg-white rounded-xl border border-gray-200 p-4">
-      {filters.map((f) => f.control === "number"
+      {filters.map((f) => f.control === "choice"
+        ? (
+          <label key={f.id} className="flex flex-col gap-1 text-xs text-gray-500">
+            {f.label}
+            <select value={choiceValue(f, values)} onChange={(e) => onChange(f.id, [e.target.value])}
+              className="min-w-44 px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-800 bg-white">
+              {(f.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
+        )
+        : f.control === "number"
         ? (
           <label key={f.id} className="flex flex-col gap-1 text-xs text-gray-500">
             {f.label}
