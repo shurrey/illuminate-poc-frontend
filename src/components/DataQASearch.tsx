@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { suggestedQuestions } from "@/data/mockReports";
+import { suggestedQuestions } from "@/data/suggestedQuestions";
 import { Search, Sparkles, ArrowRight } from "lucide-react";
 
 export function DataQASearch() {
