@@ -23,3 +23,9 @@ export function withDependantsCleared(filters: ReportFilterDef[], values: Filter
 export function optionsDimension(f: ReportFilterDef): string | undefined {
   return f.dimension ?? f.dimensions?.find((d) => d.ref.includes(":"))?.ref;
 }
+
+/** A dimension's distinct values as filter options: no nulls, no empties, none the filter excludes. */
+export function optionValues(rows: Record<string, unknown>[], column: string, exclude: string[] = []): string[] {
+  return rows.map((r) => r[column]).filter((v) => v !== null && v !== undefined && v !== "")
+    .map(String).filter((v) => v !== "null" && !exclude.includes(v));
+}

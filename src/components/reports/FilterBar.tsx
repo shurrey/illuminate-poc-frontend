@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { querySemantic } from "@/services/semanticApi";
 import type { SemanticCatalog } from "@/types/semantic";
-import { optionsDimension } from "@/reports/cascade";
+import { optionsDimension, optionValues } from "@/reports/cascade";
 import type { DateRangeValue, FilterValues, ReportFilterDef } from "@/types/reports";
 
 /** The distinct values of a filter's dimension (via its dataset's first measure), narrowed by its parents' values. */
@@ -21,10 +21,10 @@ function useOptions(filter: ReportFilterDef, catalog: SemanticCatalog | null, pa
     const filters = (JSON.parse(parentKey) as { dimension: string; values: string[] }[])
       .map((p) => ({ dimension: p.dimension, op: "in" as const, values: p.values }));
     querySemantic({ measures: [`${datasetId}:${measure}`], dimensions: [dimension], filters, order_by: [{ field: name, direction: "asc" }], limit: 1000 })
-      .then((r) => live && setOptions(r.rows.map((row) => String(row[name])).filter((v) => v && v !== "null")))
+      .then((r) => live && setOptions(optionValues(r.rows, name, filter.exclude_values)))
       .catch(() => live && setOptions([]));
     return () => { live = false; };
-  }, [dimension, catalog, parentKey]);
+  }, [dimension, catalog, parentKey, filter.exclude_values]);
   return options;
 }
 

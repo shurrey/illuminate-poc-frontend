@@ -17,3 +17,12 @@ describe("withDependantsCleared", () => {
     expect(withDependantsCleared(filters, { ih1: ["A"], ih2: ["B"], ih3: ["C"] }, "ih2", ["Y"])).toEqual({ ih1: ["A"], ih2: ["Y"] });
   });
 });
+
+import { optionValues } from "./cascade";
+
+describe("optionValues", () => {
+  it("drops empty values and the filter's excluded placeholders", () => {
+    const rows = [{ ih: "-" }, { ih: "All Nodes" }, { ih: "Nursing" }, { ih: null }, { ih: "Art" }];
+    expect(optionValues(rows, "ih", ["-", "All Nodes"])).toEqual(["Nursing", "Art"]);
+  });
+});
