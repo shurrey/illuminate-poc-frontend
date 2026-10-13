@@ -2,12 +2,21 @@
 
 import { useState } from "react";
 import type { FilterValues, ReportDef } from "@/types/reports";
+import { missingRequired } from "@/reports/required";
 import { VisualCard } from "./VisualCard";
 
 /** A report's pages as tabs, each a grid of visuals. */
 export function ReportView({ report, values }: { report: ReportDef; values: FilterValues }) {
   const [page, setPage] = useState(0);
   const current = report.pages[page] ?? report.pages[0];
+  const missing = missingRequired(report, values);
+  if (missing.length) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-600">
+        Choose {missing.map((f) => f.label).join(" and ")} above to see this report.
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
       {report.pages.length > 1 && (

@@ -37,6 +37,8 @@ export interface VisualDef {
 
 export interface ReportDef extends ReportSummary {
   filters: ReportFilterDef[];
+  /** Filters that must have a value before the report's visuals run. */
+  required_filters?: string[];
   pages: { title: string; visuals: VisualDef[] }[];
 }
 
