@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isLearnSchema, LEARN_REFUSAL, PREVIEW_REFUSAL, previewState, referencesLearn } from "./license";
+import { effectiveTab, isLearnSchema, LEARN_REFUSAL, PREVIEW_REFUSAL, previewState, referencesLearn } from "./license";
 
 describe("isLearnSchema", () => {
   it("matches LEARN in any case and nothing else", () => {
@@ -38,11 +38,26 @@ describe("referencesLearn", () => {
     "select * from learn.course_main",
     "select * from db.learn.course_main",
     "from x join Learn.users u on 1=1",
+    "select * from LEARN/**/.X",
+    "select * from LEARN --c\n.X",
+    "select * from IDENTIFIER($$LEARN.X$$)",
   ])("matches %s", (sql) => expect(referencesLearn(sql)).toBe(true));
   it.each([
     "select * from LEARNING.COURSES",
     "select * from CDM_LMS.LEARN_X",
     "select learn_count from t",
     "select 1",
+    "select 1 -- LEARN.X\nfrom t",
   ])("ignores %s", (sql) => expect(referencesLearn(sql)).toBe(false));
+});
+
+describe("effectiveTab", () => {
+  it("falls back to schema when the data tab is not enabled", () => {
+    expect(effectiveTab("data", previewState("core", "LEARN", true))).toBe("schema");
+    expect(effectiveTab("data", previewState("core", "CDM_LMS", false))).toBe("schema");
+  });
+  it("keeps the requested tab otherwise", () => {
+    expect(effectiveTab("data", previewState("core", "CDM_LMS", true))).toBe("data");
+    expect(effectiveTab("schema", previewState("core", "LEARN", true))).toBe("schema");
+  });
 });
