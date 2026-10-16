@@ -19,7 +19,7 @@ export default function DeveloperPage() {
     getSchemas, getSchema, getRelationships, searchCatalog,
     loadPreview, getPreview, isPreviewLoading,
   } = useDictionary();
-  const { isAdmin } = useAuth();
+  const { isAdmin, tenant } = useAuth();
 
   const [activeSchema, setActiveSchema] = useState<string | null>(null);
   const [activeTable, setActiveTable] = useState<string | null>(null);
@@ -181,6 +181,7 @@ export default function DeveloperPage() {
           previewLoading={isPreviewLoading(effectiveSchema, activeTable)}
           onLoadPreview={handleLoadPreview}
           canPreview={isAdmin}
+          license={tenant?.license ?? null}
           onClose={() => setActiveTable(null)}
           onNavigate={handleNavigateRelationship}
         />
