@@ -1,7 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useCallback } from "react";
 import { dashboardCards as defaultCards, type DashboardCard } from "@/data/dashboardCards";
+import { useAuth } from "@/context/AuthContext";
+import { useUserStoredState } from "@/lib/userStorage";
 
 interface CardStoreContextType {
   cards: DashboardCard[];
@@ -23,54 +25,44 @@ function seedDefaults(): DashboardCard[] {
   return defaultCards.map((c) => ({ ...c, isBuiltIn: true, enabled: true }));
 }
 
+function loadCards(stored: string | null): DashboardCard[] {
+  if (!stored) return seedDefaults();
+  try {
+    const parsed = JSON.parse(stored) as DashboardCard[];
+    // Merge: keep stored state but add any new built-in cards that aren't in storage yet
+    const storedIds = new Set(parsed.map((c) => c.id));
+    const newDefaults = defaultCards
+      .filter((c) => !storedIds.has(c.id))
+      .map((c) => ({ ...c, isBuiltIn: true, enabled: true }));
+    return [...parsed, ...newDefaults];
+  } catch {
+    return seedDefaults();
+  }
+}
+
 export function CardStoreProvider({ children }: { children: React.ReactNode }) {
-  const [cards, setCards] = useState<DashboardCard[]>([]);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as DashboardCard[];
-        // Merge: keep stored state but add any new built-in cards that aren't in storage yet
-        const storedIds = new Set(parsed.map((c) => c.id));
-        const newDefaults = defaultCards
-          .filter((c) => !storedIds.has(c.id))
-          .map((c) => ({ ...c, isBuiltIn: true, enabled: true }));
-        setCards([...parsed, ...newDefaults]);
-      } else {
-        setCards(seedDefaults());
-      }
-    } catch {
-      setCards(seedDefaults());
-    }
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
-  }, [cards, hydrated]);
+  const { user } = useAuth();
+  const [cards, setCards] = useUserStoredState(STORAGE_KEY, user?.id ?? null, loadCards);
 
   const enabledCards = cards.filter((c) => c.enabled !== false);
 
   const addCard = useCallback((card: DashboardCard) => {
     setCards((prev) => [...prev, { ...card, enabled: true }]);
-  }, []);
+  }, [setCards]);
 
   const updateCard = useCallback((id: string, updates: Partial<DashboardCard>) => {
     setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
-  }, []);
+  }, [setCards]);
 
   const removeCard = useCallback((id: string) => {
     setCards((prev) => prev.filter((c) => c.id !== id));
-  }, []);
+  }, [setCards]);
 
   const toggleCard = useCallback((id: string) => {
     setCards((prev) =>
       prev.map((c) => (c.id === id ? { ...c, enabled: c.enabled === false ? true : false } : c))
     );
-  }, []);
+  }, [setCards]);
 
   const moveCard = useCallback((id: string, direction: "up" | "down") => {
     setCards((prev) => {
@@ -82,7 +74,7 @@ export function CardStoreProvider({ children }: { children: React.ReactNode }) {
       [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
       return next;
     });
-  }, []);
+  }, [setCards]);
 
   const resetToDefaults = useCallback(() => {
     // Keep user-created cards but reset built-in cards
@@ -90,7 +82,7 @@ export function CardStoreProvider({ children }: { children: React.ReactNode }) {
       const userCards = prev.filter((c) => !c.isBuiltIn);
       return [...seedDefaults(), ...userCards];
     });
-  }, []);
+  }, [setCards]);
 
   return (
     <CardStoreContext.Provider

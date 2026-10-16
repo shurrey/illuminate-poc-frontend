@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { listReports } from "@/services/reportsApi";
 import type { ReportSummary } from "@/types/reports";
+import { onSessionEnd } from "@/lib/session";
 
 let loaded: Promise<ReportSummary[]> | null = null;
+onSessionEnd(() => { loaded = null; });
 
 /** The standard reports, loaded once per page load; null while loading. */
 export function useReportList(): { reports: ReportSummary[] | null; error: string | null } {

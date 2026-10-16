@@ -1,3 +1,5 @@
+import { onSessionEnd } from "@/lib/session";
+
 /** Report results by user and key; a failed result is evicted so Retry runs it again. */
 export function createResultCache() {
   const entries = new Map<string, Promise<unknown>>();
@@ -18,3 +20,4 @@ export function createResultCache() {
 
 /** The page-wide cache; cleared whenever a session ends. */
 export const reportResults = createResultCache();
+onSessionEnd(() => reportResults.clear());
