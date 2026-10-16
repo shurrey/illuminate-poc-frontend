@@ -6,6 +6,8 @@ import remarkGfm from "remark-gfm";
 import { AlertTriangle, Loader2, Save, ShieldCheck, Sparkles, Upload } from "lucide-react";
 import { useQueryBuilder } from "@/context/QueryBuilderContext";
 import { useSemanticGeneration } from "@/hooks/useSemanticGeneration";
+import { useAuth } from "@/context/AuthContext";
+import { LEARN_REFUSAL, referencesLearn } from "@/lib/license";
 import { SavedNotice } from "./SavedNotice";
 
 const mappingPrompt = (sql: string) =>
@@ -22,6 +24,8 @@ export function ImportQuery({ onViewSaved }: { onViewSaved?: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const gen = useSemanticGeneration();
   const { saveQuery } = useQueryBuilder();
+  const { tenant } = useAuth();
+  const learnRefused = tenant?.license !== "premium" && referencesLearn(sql);
   const contract = gen.result.contract;
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,7 +64,13 @@ export function ImportQuery({ onViewSaved }: { onViewSaved?: () => void }) {
           className="w-full px-4 py-3 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#0066FF] resize-none bg-gray-50" />
       </div>
 
-      {sql.trim() && (
+      {learnRefused && (
+        <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+          <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" /> {LEARN_REFUSAL}
+        </div>
+      )}
+
+      {sql.trim() && !learnRefused && (
         <button onClick={() => { setSavedName(null); gen.ask(mappingPrompt(sql.trim())); }} disabled={gen.isGenerating}
           className="flex items-center gap-2 px-4 py-2 bg-[#0066FF] hover:bg-[#0052cc] text-white text-sm font-medium rounded-lg disabled:opacity-50">
           {gen.isGenerating ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}

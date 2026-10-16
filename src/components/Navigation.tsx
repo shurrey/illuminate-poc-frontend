@@ -32,7 +32,7 @@ export function Navigation() {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  const { signOut } = useAuth();
+  const { signOut, user, tenant } = useAuth();
 
   useEffect(() => { setHydrated(true); }, []);
 
@@ -94,6 +94,11 @@ export function Navigation() {
 
               <div className="w-px h-5 bg-white/20 mx-1" />
 
+              {(user?.name || tenant) && (
+                <span className="text-xs text-gray-300 max-w-[220px] truncate" title={tenant ? `${user?.name ?? ""} · ${tenant.name}` : user?.name}>
+                  {user?.name}{tenant ? `${user?.name ? " · " : ""}${tenant.name}` : ""}
+                </span>
+              )}
               <NotificationCenter />
               <LanguageSelector />
               <Link

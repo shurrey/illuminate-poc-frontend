@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { SchemaInfo, Relationship, PreviewResponse } from "@/services/dictionaryApi";
+import { effectiveTab, previewState, type License } from "@/lib/license";
 import { DOMAIN_COLORS } from "./DomainSidebar";
 import { ResultTable } from "@/components/ResultTable";
 import { X, Key, ArrowRight, ExternalLink, Loader2 } from "lucide-react";
@@ -16,24 +17,28 @@ interface EntityDetailProps {
   onLoadPreview: () => void;
   /** Table previews return raw rows, so only administrators get the Data Preview tab. */
   canPreview: boolean;
+  /** null while the tenant is unknown; LEARN preview stays disabled then. */
+  license: License | null;
   onClose: () => void;
   onNavigate: (schema: string, table: string) => void;
 }
 
 export function EntityDetail({
   schemaId, tableName, schema, relationships, preview, previewLoading,
-  onLoadPreview, canPreview, onClose, onNavigate,
+  onLoadPreview, canPreview, license, onClose, onNavigate,
 }: EntityDetailProps) {
-  const [activeTab, setActiveTab] = useState<"schema" | "data">("schema");
+  const [requestedTab, setActiveTab] = useState<"schema" | "data">("schema");
   const table = schema.tables[tableName];
+  const dataPreview = previewState(license, schemaId, canPreview);
+  const activeTab = effectiveTab(requestedTab, dataPreview);
   const color = DOMAIN_COLORS[schemaId] || "#6b7280";
 
   // Fetch preview when Data tab is activated
   useEffect(() => {
-    if (activeTab === "data" && !preview && !previewLoading) {
+    if (activeTab === "data" && dataPreview.enabled && !preview && !previewLoading) {
       onLoadPreview();
     }
-  }, [activeTab, preview, previewLoading, onLoadPreview]);
+  }, [activeTab, dataPreview.enabled, preview, previewLoading, onLoadPreview]);
 
   if (!table) return null;
 
@@ -67,17 +72,23 @@ export function EntityDetail({
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 px-6 flex-shrink-0">
-          {(canPreview ? (["schema", "data"] as const) : (["schema"] as const)).map((tab) => (
+          {(dataPreview.visible ? (["schema", "data"] as const) : (["schema"] as const)).map((tab) => {
+            const disabled = tab === "data" && !dataPreview.enabled;
+            return (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => { if (!disabled) setActiveTab(tab); }}
+              aria-disabled={disabled || undefined}
+              title={disabled ? dataPreview.reason : undefined}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                activeTab === tab ? "border-[#0066FF] text-[#0066FF]" : "border-transparent text-gray-500 hover:text-gray-700"
+                disabled ? "border-transparent text-gray-300 cursor-not-allowed"
+                  : activeTab === tab ? "border-[#0066FF] text-[#0066FF]" : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
               {tab === "schema" ? "Schema" : "Data Preview"}
             </button>
-          ))}
+            );
+          })}
         </div>
 
         {/* Content */}

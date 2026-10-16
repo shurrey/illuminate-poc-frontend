@@ -3,11 +3,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authService } from "@/services/authService";
 import { reportResults } from "@/reports/resultCache";
+import { fetchTenant, type Tenant } from "@/services/meApi";
 
 interface AuthContextType {
   isAuthenticated: boolean;
   user: { id: string; name: string; email?: string } | null;
   isAdmin: boolean;
+  tenant: Tenant | null;
   login: (username: string, password: string) => Promise<void>;
   signOut: () => void;
   isLoading: boolean;
@@ -96,8 +98,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<AuthContextType["user"]>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [tenant, setTenant] = useState<Tenant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    fetchTenant().then((t) => { if (!cancelled) setTenant(t); });
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     setIsAuthenticated(authService.isAuthenticated());
@@ -109,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAuthenticated(false);
       setUser(null);
       setIsAdmin(false);
+      setTenant(null);
       setError("Your session has expired. Please sign in again.");
     });
   }, []);
@@ -134,10 +145,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(false);
     setUser(null);
     setIsAdmin(false);
+    setTenant(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, isAdmin, login, signOut, isLoading, error }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, isAdmin, tenant, login, signOut, isLoading, error }}>
       {/* Always render children so the router stays mounted and knows the URL */}
       {children}
 
