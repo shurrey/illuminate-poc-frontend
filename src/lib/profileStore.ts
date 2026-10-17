@@ -53,6 +53,27 @@ export interface Change<T, R> {
   merge: (base: T, result: R) => T;
 }
 
+/**
+ * A create followed by a reload of the whole view. When only the reload fails, the created item is merged into
+ * the confirmed state with add, since the server has it.
+ */
+export function createThenReload<T, C>(
+  apply: (state: T) => T, create: () => Promise<C>, reload: () => Promise<T>, add: (state: T, created: C) => T,
+): Change<T, { view: T } | { created: C }> {
+  return {
+    apply,
+    send: async () => {
+      const created = await create();
+      try {
+        return { view: await reload() };
+      } catch {
+        return { created };
+      }
+    },
+    merge: (base, result) => ("view" in result ? result.view : add(base, result.created)),
+  };
+}
+
 const messageOf = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong");
 
 /**
@@ -106,6 +127,8 @@ export class ProfileStore<T> {
     this.update({});
     return this.enqueue(async () => {
       if (!live()) return false;
+      // Without a loaded base the request would overwrite the server's state with the placeholder.
+      if (!this.status.loaded) return this.fail(id, new Error("Your profile hasn't loaded yet"));
       for (let attempt = 0; ; attempt++) {
         try {
           const base = this.o.base;

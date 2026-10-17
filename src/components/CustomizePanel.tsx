@@ -38,6 +38,7 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
               {/* Toggle visibility */}
               <button
                 onClick={() => toggleCard(card.id)}
+                disabled={loading}
                 className={`p-1 rounded transition-colors ${
                   card.enabled !== false ? "text-[#0066FF] hover:bg-blue-50" : "text-gray-400 hover:bg-gray-100"
                 }`}
@@ -56,14 +57,14 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
               <div className="flex flex-col">
                 <button
                   onClick={() => moveCard(card.id, "up")}
-                  disabled={idx === 0}
+                  disabled={loading || idx === 0}
                   className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30"
                 >
                   <ChevronUp size={13} />
                 </button>
                 <button
                   onClick={() => moveCard(card.id, "down")}
-                  disabled={idx === cards.length - 1}
+                  disabled={loading || idx === cards.length - 1}
                   className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30"
                 >
                   <ChevronDown size={13} />
@@ -74,6 +75,7 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
               {!card.isBuiltIn && (
                 <button
                   onClick={() => removeCard(card.id)}
+                  disabled={loading}
                   className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                   title="Delete card"
                 >
@@ -95,6 +97,7 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
           </Link>
           <button
             onClick={resetToDefaults}
+            disabled={loading}
             className="flex items-center justify-center gap-1.5 w-full px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
           >
             <RotateCcw size={13} /> Reset to Defaults

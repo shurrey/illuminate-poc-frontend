@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { endSession } from "./session";
 import {
-  ProfileStore, addRecent, begin, confirm, discard, layoutOf, markRead, moved, settled, shown,
+  ProfileStore, addRecent, createThenReload, begin, confirm, discard, layoutOf, markRead, moved, settled, shown,
   toggleFavorite, toggled,
 } from "./profileStore";
 
@@ -181,5 +181,48 @@ describe("ProfileStore", () => {
     await store.load();
     expect(listener).toHaveBeenCalled();
     off();
+  });
+
+  it("refuses a change queued behind a failed load without sending it", async () => {
+    const store = new ProfileStore([0], async () => { throw new Error("down"); }, isConflict);
+    const loading = store.load();
+    const send = vi.fn(async () => [9]);
+    const done = store.mutate({ apply: (s) => [...s, 1], send, merge: (_, r) => r });
+    await loading;
+    expect(await done).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+    expect(store.snapshot()).toMatchObject({ value: [0], error: "Your profile hasn't loaded yet" });
+  });
+});
+
+describe("createThenReload", () => {
+  type View = { items: string[]; version: number };
+  const loaded = async (store: ProfileStore<View>) => { await store.load(); return store; };
+
+  it("takes the reloaded view when both calls succeed", async () => {
+    const store = await loaded(new ProfileStore<View>({ items: [], version: 0 }, async () => ({ items: [], version: 1 }), isConflict));
+    const change = createThenReload<View, string>(
+      (s) => ({ ...s, items: [...s.items, "temp"] }), async () => "c_1", async () => ({ items: ["c_1"], version: 2 }),
+      (s, created) => ({ ...s, items: [...s.items, created] }));
+    expect(await store.mutate(change)).toBe(true);
+    expect(store.snapshot().value).toEqual({ items: ["c_1"], version: 2 });
+  });
+
+  it("keeps the created item when only the reload fails", async () => {
+    const store = await loaded(new ProfileStore<View>({ items: [], version: 0 }, async () => ({ items: ["a"], version: 1 }), isConflict));
+    const change = createThenReload<View, string>(
+      (s) => ({ ...s, items: [...s.items, "temp"] }), async () => "c_1", async () => { throw new Error("down"); },
+      (s, created) => ({ ...s, items: [...s.items, created] }));
+    expect(await store.mutate(change)).toBe(true);
+    expect(store.snapshot()).toMatchObject({ value: { items: ["a", "c_1"], version: 1 }, error: null });
+  });
+
+  it("rolls back when the create fails", async () => {
+    const store = await loaded(new ProfileStore<View>({ items: [], version: 0 }, async () => ({ items: ["a"], version: 1 }), isConflict));
+    const change = createThenReload<View, string>(
+      (s) => ({ ...s, items: [...s.items, "temp"] }), async () => { throw new Error("limit"); }, async () => ({ items: [], version: 9 }),
+      (s, created) => ({ ...s, items: [...s.items, created] }));
+    expect(await store.mutate(change)).toBe(false);
+    expect(store.snapshot()).toMatchObject({ value: { items: ["a"], version: 1 }, error: "limit" });
   });
 });

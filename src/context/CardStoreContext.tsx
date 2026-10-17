@@ -4,7 +4,7 @@ import React, { createContext, useContext, useCallback, useMemo } from "react";
 import { fallbackCards, type DashboardCard } from "@/data/dashboardCards";
 import { useAuth } from "@/context/AuthContext";
 import { useProfileStore } from "@/hooks/useProfileStore";
-import { ProfileStore, layoutOf, moved, toggled } from "@/lib/profileStore";
+import { ProfileStore, createThenReload, layoutOf, moved, toggled } from "@/lib/profileStore";
 import * as api from "@/services/profileApi";
 
 interface CardStoreContextType {
@@ -47,12 +47,13 @@ export function CardStoreProvider({ children }: { children: React.ReactNode }) {
     merge: takeView,
   }), [store]);
 
-  const addCard = useCallback((card: DashboardCard) => store.mutate({
-    apply: (s) => ({ ...s, cards: [...s.cards, { ...card, isBuiltIn: false, enabled: true }] }),
-    // Creating a card also appends it to the layout, which bumps the layout version: re-read both.
-    send: async () => { await api.createCard(card); return api.getCards(); },
-    merge: takeView,
-  }), [store]);
+  // Creating a card also appends it to the layout, which bumps the layout version: re-read both.
+  const addCard = useCallback((card: DashboardCard) => store.mutate(createThenReload<api.CardsView, DashboardCard>(
+    (s) => ({ ...s, cards: [...s.cards, { ...card, isBuiltIn: false, enabled: true }] }),
+    () => api.createCard(card),
+    api.getCards,
+    (s, created) => ({ ...s, cards: [...s.cards, created] }),
+  )), [store]);
 
   const updateCard = useCallback((id: string, updates: Partial<DashboardCard>) => store.mutate({
     apply: (s) => ({ ...s, cards: s.cards.map((c) => (c.id === id ? { ...c, ...updates } : c)) }),

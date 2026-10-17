@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { mockNotifications } from "@/data/mockAlerts";
 import { useProfileStore } from "@/hooks/useProfileStore";
 import { ProfileStore, addRecent, markRead, toggleFavorite as toggledFavorite } from "@/lib/profileStore";
 import * as api from "@/services/profileApi";
@@ -28,8 +29,8 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 const DEFAULTS: api.PrefsView = {
   favorites: [], recentReports: [], readNotifications: [], visibleWidgets: ["ai", "kpis", "feed", "quickaccess"], version: 0,
 };
-// The notification feed is still mock data (components/NotificationCenter.tsx).
-const ALL_NOTIFICATION_IDS = ["n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8"];
+// The notification feed is still mock data; marking all read covers every notification it shows.
+const ALL_NOTIFICATION_IDS = mockNotifications.map((n) => n.id);
 
 function createStore() {
   return new ProfileStore<api.PrefsView>(DEFAULTS, api.getPrefs, api.isConflict);
