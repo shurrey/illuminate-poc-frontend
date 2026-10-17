@@ -36,11 +36,12 @@ export function ImportQuery({ onViewSaved }: { onViewSaved?: () => void }) {
     reader.readAsText(file);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!contract || !name.trim()) return;
     const now = new Date().toISOString();
-    saveQuery({ id: crypto.randomUUID(), name: name.trim(), description: description.trim(), prompt: "", contract, createdAt: now, lastUsedAt: now });
-    setSavedName(name.trim());
+    const saved = { id: crypto.randomUUID(), name: name.trim(), description: description.trim(), prompt: "", contract, createdAt: now, lastUsedAt: null };
+    if (!(await saveQuery(saved))) return;
+    setSavedName(saved.name);
     gen.reset();
     setSql("");
     setName("");

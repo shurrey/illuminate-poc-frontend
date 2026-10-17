@@ -10,7 +10,7 @@ interface MyQueriesProps {
 }
 
 export function MyQueries({ onLoadQuery }: MyQueriesProps) {
-  const { queries, deleteQuery } = useQueryBuilder();
+  const { queries, loading, loaded, deleteQuery } = useQueryBuilder();
   const [search, setSearch] = useState("");
 
   const filtered = queries.filter(
@@ -29,6 +29,10 @@ export function MyQueries({ onLoadQuery }: MyQueriesProps) {
     const d = new Date(iso);
     return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
   };
+
+  if (loading && !loaded) {
+    return <div className="py-20 text-center text-sm text-gray-400">Loading your saved queries...</div>;
+  }
 
   if (queries.length === 0) {
     return (

@@ -28,4 +28,17 @@ describe("authService.logout", () => {
     expect(reportResults.get("alice", "k")).toBeUndefined();
     off();
   });
+
+  it("removes the app's saved profile keys from the browser", async () => {
+    const { authService } = await import("./authService");
+    localStorage.setItem("illuminate-queries-v2:alice", "[]");
+    localStorage.setItem("illuminate-user", "{}");
+    localStorage.setItem("unrelated", "kept");
+
+    authService.logout();
+
+    expect(localStorage.getItem("illuminate-queries-v2:alice")).toBeNull();
+    expect(localStorage.getItem("illuminate-user")).toBeNull();
+    expect(localStorage.getItem("unrelated")).toBe("kept");
+  });
 });

@@ -1,92 +1,95 @@
 "use client";
 
-import React, { createContext, useContext, useCallback } from "react";
-import { dashboardCards as defaultCards, type DashboardCard } from "@/data/dashboardCards";
+import React, { createContext, useContext, useCallback, useMemo } from "react";
+import { fallbackCards, type DashboardCard } from "@/data/dashboardCards";
 import { useAuth } from "@/context/AuthContext";
-import { useUserStoredState } from "@/lib/userStorage";
+import { useProfileStore } from "@/hooks/useProfileStore";
+import { ProfileStore, layoutOf, moved, toggled } from "@/lib/profileStore";
+import * as api from "@/services/profileApi";
 
 interface CardStoreContextType {
   cards: DashboardCard[];
   enabledCards: DashboardCard[];
-  addCard: (card: DashboardCard) => void;
-  updateCard: (id: string, updates: Partial<DashboardCard>) => void;
-  removeCard: (id: string) => void;
-  toggleCard: (id: string) => void;
-  moveCard: (id: string, direction: "up" | "down") => void;
-  resetToDefaults: () => void;
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+  clearError: () => void;
+  reload: () => Promise<boolean>;
+  /** Resolves false when the server refused the card; the error is in `error`. */
+  addCard: (card: DashboardCard) => Promise<boolean>;
+  updateCard: (id: string, updates: Partial<DashboardCard>) => Promise<boolean>;
+  removeCard: (id: string) => Promise<boolean>;
+  toggleCard: (id: string) => Promise<boolean>;
+  moveCard: (id: string, direction: "up" | "down") => Promise<boolean>;
+  resetToDefaults: () => Promise<boolean>;
 }
 
 const CardStoreContext = createContext<CardStoreContextType | undefined>(undefined);
 
-// v2: cards hold query contracts; v1 cards held SQL and are not migrated.
-const STORAGE_KEY = "illuminate-dashboard-cards-v2";
+const BUILT_IN_IDS = fallbackCards.map((c) => c.id);
+const LOADING: api.CardsView = { cards: fallbackCards.map((c) => ({ ...c, isBuiltIn: true, enabled: true })), version: 0 };
+const takeView = (_: api.CardsView, view: api.CardsView) => view;
 
-function seedDefaults(): DashboardCard[] {
-  return defaultCards.map((c) => ({ ...c, isBuiltIn: true, enabled: true }));
-}
-
-function loadCards(stored: string | null): DashboardCard[] {
-  if (!stored) return seedDefaults();
-  try {
-    const parsed = JSON.parse(stored) as DashboardCard[];
-    // Merge: keep stored state but add any new built-in cards that aren't in storage yet
-    const storedIds = new Set(parsed.map((c) => c.id));
-    const newDefaults = defaultCards
-      .filter((c) => !storedIds.has(c.id))
-      .map((c) => ({ ...c, isBuiltIn: true, enabled: true }));
-    return [...parsed, ...newDefaults];
-  } catch {
-    return seedDefaults();
-  }
+function createStore() {
+  return new ProfileStore<api.CardsView>(LOADING, api.getCards, api.isConflict);
 }
 
 export function CardStoreProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const [cards, setCards] = useUserStoredState(STORAGE_KEY, user?.id ?? null, loadCards);
+  const [store, { value, loading, loaded, error }] = useProfileStore(createStore, user?.id ?? null);
+  const cards = useMemo(() => (loaded ? value.cards : loading ? LOADING.cards : []), [value, loaded, loading]);
+  const enabledCards = useMemo(() => (loaded ? cards.filter((c) => c.enabled !== false) : []), [cards, loaded]);
 
-  const enabledCards = cards.filter((c) => c.enabled !== false);
+  const relayout = useCallback((change: (cards: DashboardCard[]) => DashboardCard[]) => store.mutate({
+    apply: (s) => ({ ...s, cards: change(s.cards) }),
+    send: (next) => api.putCardLayout(layoutOf(next.cards, BUILT_IN_IDS), next.version),
+    merge: takeView,
+  }), [store]);
 
-  const addCard = useCallback((card: DashboardCard) => {
-    setCards((prev) => [...prev, { ...card, enabled: true }]);
-  }, [setCards]);
+  const addCard = useCallback((card: DashboardCard) => store.mutate({
+    apply: (s) => ({ ...s, cards: [...s.cards, { ...card, isBuiltIn: false, enabled: true }] }),
+    // Creating a card also appends it to the layout, which bumps the layout version: re-read both.
+    send: async () => { await api.createCard(card); return api.getCards(); },
+    merge: takeView,
+  }), [store]);
 
-  const updateCard = useCallback((id: string, updates: Partial<DashboardCard>) => {
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
-  }, [setCards]);
+  const updateCard = useCallback((id: string, updates: Partial<DashboardCard>) => store.mutate({
+    apply: (s) => ({ ...s, cards: s.cards.map((c) => (c.id === id ? { ...c, ...updates } : c)) }),
+    send: (next) => {
+      const card = next.cards.find((c) => c.id === id);
+      if (!card) throw new Error("Card not found");
+      return api.updateCard(card);
+    },
+    merge: (base, saved) => ({ ...base, cards: base.cards.map((c) => (c.id === id ? { ...saved, enabled: c.enabled } : c)) }),
+  }), [store]);
 
-  const removeCard = useCallback((id: string) => {
-    setCards((prev) => prev.filter((c) => c.id !== id));
-  }, [setCards]);
+  const removeCard = useCallback((id: string) => store.mutate({
+    apply: (s) => ({ ...s, cards: s.cards.filter((c) => c.id !== id) }),
+    send: () => api.deleteCard(id),
+    merge: takeView,
+  }), [store]);
 
-  const toggleCard = useCallback((id: string) => {
-    setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, enabled: c.enabled === false ? true : false } : c))
-    );
-  }, [setCards]);
+  const toggleCard = useCallback((id: string) => relayout((cs) => toggled(cs, id)), [relayout]);
+  const moveCard = useCallback((id: string, direction: "up" | "down") => relayout((cs) => moved(cs, id, direction)), [relayout]);
 
-  const moveCard = useCallback((id: string, direction: "up" | "down") => {
-    setCards((prev) => {
-      const idx = prev.findIndex((c) => c.id === id);
-      if (idx < 0) return prev;
-      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (swapIdx < 0 || swapIdx >= prev.length) return prev;
-      const next = [...prev];
-      [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
-      return next;
-    });
-  }, [setCards]);
+  const resetToDefaults = useCallback(() => store.mutate({
+    apply: (s) => {
+      const builtIns = s.cards.filter((c) => c.isBuiltIn).map((c) => ({ ...c, enabled: true }));
+      return { ...s, cards: [...builtIns, ...s.cards.filter((c) => !c.isBuiltIn)] };
+    },
+    send: api.resetCards,
+    merge: takeView,
+  }), [store]);
 
-  const resetToDefaults = useCallback(() => {
-    // Keep user-created cards but reset built-in cards
-    setCards((prev) => {
-      const userCards = prev.filter((c) => !c.isBuiltIn);
-      return [...seedDefaults(), ...userCards];
-    });
-  }, [setCards]);
+  const clearError = useCallback(() => store.clearError(), [store]);
+  const reload = useCallback(() => store.load(), [store]);
 
   return (
     <CardStoreContext.Provider
-      value={{ cards, enabledCards, addCard, updateCard, removeCard, toggleCard, moveCard, resetToDefaults }}
+      value={{
+        cards, enabledCards, loading, loaded, error, clearError, reload,
+        addCard, updateCard, removeCard, toggleCard, moveCard, resetToDefaults,
+      }}
     >
       {children}
     </CardStoreContext.Provider>

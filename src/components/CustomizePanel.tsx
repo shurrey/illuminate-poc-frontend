@@ -5,7 +5,7 @@ import { X, ChevronUp, ChevronDown, Trash2, Eye, EyeOff, Plus, RotateCcw } from 
 import Link from "next/link";
 
 export function CustomizePanel({ onClose }: { onClose: () => void }) {
-  const { cards, toggleCard, moveCard, removeCard, resetToDefaults } = useCardStore();
+  const { cards, loading, error, clearError, toggleCard, moveCard, removeCard, resetToDefaults } = useCardStore();
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -21,6 +21,13 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
 
         {/* Card list */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {error && (
+            <div role="alert" className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+              <span className="flex-1">{error}</span>
+              <button onClick={clearError} aria-label="Dismiss" className="text-red-400 hover:text-red-600"><X size={14} /></button>
+            </div>
+          )}
+          {loading && <div className="text-xs text-gray-400">Loading your cards...</div>}
           {cards.map((card, idx) => (
             <div
               key={card.id}

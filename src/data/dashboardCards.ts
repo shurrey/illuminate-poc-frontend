@@ -53,7 +53,11 @@ function metricCard(id: string, metric: string, label: string, description: stri
   return { id, label, description, longDescription, prompt, contract: { metrics: [metric] }, format, reportLink };
 }
 
-export const dashboardCards: DashboardCard[] = [
+/**
+ * A copy of the server's built-in cards (semantic_layer/data/default_cards.json), shown only while the profile loads
+ * and used to tell which built-ins the user hid. Never persisted.
+ */
+export const fallbackCards: DashboardCard[] = [
   metricCard("active-students", "metric.active_students.v1", "Active Students",
     "Students with course activity in the course window",
     "Students with an available, enabled enrollment and course activity inside the course window, in courses that have an instructor and have not been deleted.",
