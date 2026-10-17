@@ -1,15 +1,26 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { ShieldCheck, AlertTriangle } from "lucide-react";
+import { columnMark } from "@/lib/provenance";
+import type { Provenance } from "@/types/semantic";
 
 interface TableData {
   rows: Record<string, unknown>[];
   columns: string[];
 }
 
+function ColumnMarker({ provenance, column }: { provenance?: Provenance; column: string }) {
+  const mark = columnMark(provenance, column);
+  if (!mark) return null;
+  return mark.kind === "governed"
+    ? <span role="img" tabIndex={0} title={mark.tooltip} aria-label={mark.tooltip} className="text-emerald-600"><ShieldCheck size={12} /></span>
+    : <span role="img" tabIndex={0} title={mark.tooltip} aria-label={mark.tooltip} className="text-amber-600"><AlertTriangle size={12} /></span>;
+}
+
 type SortDirection = "asc" | "desc" | null;
 
-export function DataTable({ data, maxRows = 10 }: { data: TableData; maxRows?: number }) {
+export function DataTable({ data, maxRows = 10, provenance }: { data: TableData; maxRows?: number; provenance?: Provenance }) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [showAll, setShowAll] = useState(false);
@@ -57,6 +68,7 @@ export function DataTable({ data, maxRows = 10 }: { data: TableData; maxRows?: n
               <th key={col} onClick={() => handleSort(col)} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none">
                 <div className="flex items-center gap-1">
                   {col}
+                  <ColumnMarker provenance={provenance} column={col} />
                   <span className={`text-xs ${sortColumn === col ? "text-[#0066FF]" : "text-gray-400"}`}>
                     {sortColumn === col ? (sortDirection === "asc" ? "▲" : sortDirection === "desc" ? "▼" : "⇅") : "⇅"}
                   </span>
