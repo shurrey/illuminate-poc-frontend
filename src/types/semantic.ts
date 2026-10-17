@@ -22,8 +22,23 @@ export interface QueryContract {
   limit?: number;
 }
 
-export interface Provenance {
+export interface ColumnProvenance {
   governed: boolean;
+  definition?: string;
+  reason?: string;
+}
+
+export type Governance = "full" | "partial" | "none";
+
+export interface Provenance {
+  /** True only when the whole result is governed. */
+  governed: boolean;
+  /** Absent on query_semantic results, which are fully governed. */
+  governance?: Governance;
+  /** Per output column, keyed by the result's column name. Absent on query_semantic results. */
+  columns?: Record<string, ColumnProvenance>;
+  /** "modified" when rows were filtered or joined outside the governed definitions. */
+  rows?: "governed" | "modified";
   datasets?: string[];
   metrics?: string[];
   measures?: string[];

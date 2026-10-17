@@ -29,6 +29,10 @@ export interface Artifact {
   /** Set on artifacts from the semantic tools: the contract that produced them (governed only). */
   query?: QueryContract;
   sql?: string;
+  /** Spliced SQL results: each governed part's contract, keyed by the name the outer SQL reads from. */
+  governed_parts?: Record<string, QueryContract>;
+  /** Spliced SQL results: the full statement that ran, with governed parts expanded. */
+  executed_sql?: string;
   provenance?: Provenance;
 }
 

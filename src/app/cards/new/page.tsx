@@ -1,5 +1,6 @@
 "use client";
 
+import { cardBlockedReason } from "@/lib/provenance";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -83,7 +84,7 @@ function CardBuilderContent() {
     return () => { live = false; };
   }, [contract]);
 
-  const ungoverned = gen.result.provenance?.governed === false;
+  const blocked = gen.result.contract ? null : cardBlockedReason(gen.result.provenance ?? undefined, undefined);
 
   const handleSave = async () => {
     if (!contract || !name.trim() || saving) return;
@@ -160,10 +161,10 @@ function CardBuilderContent() {
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{gen.answer}</ReactMarkdown>
               </div>
             )}
-            {ungoverned && (
+            {blocked && (
               <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
                 <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
-                <span>No governed metric answers this, so it can&apos;t become a card. {gen.result.provenance?.reason}</span>
+                <span>{blocked} {gen.result.provenance?.reason}</span>
               </div>
             )}
             {gen.result.contract && (

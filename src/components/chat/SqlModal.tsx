@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { format as formatSql } from "sql-formatter";
 import type { Artifact } from "@/types/chat";
+import { summarizeContract } from "@/lib/provenance";
 import { X, Copy, Check, ChevronLeft, ChevronRight, Database } from "lucide-react";
 
 export function SqlModal({ artifacts, onClose }: { artifacts: Artifact[]; onClose: () => void }) {
@@ -15,6 +16,13 @@ export function SqlModal({ artifacts, onClose }: { artifacts: Artifact[]; onClos
     try {
       return formatSql(current.data as string, { language: "snowflake", keywordCase: "upper", indentStyle: "standard" });
     } catch { return current.data as string; }
+  }, [current]);
+
+  const executed = useMemo(() => {
+    if (!current.executed_sql) return "";
+    try {
+      return formatSql(current.executed_sql, { language: "snowflake", keywordCase: "upper", indentStyle: "standard" });
+    } catch { return current.executed_sql; }
   }, [current]);
 
   const handleCopy = async () => {
@@ -53,6 +61,25 @@ export function SqlModal({ artifacts, onClose }: { artifacts: Artifact[]; onClos
               {copied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy SQL</>}
             </button>
           </div>
+          {current.governed_parts && Object.keys(current.governed_parts).length > 0 && (
+            <div className="mt-4 space-y-2">
+              <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Governed parts</h4>
+              {Object.entries(current.governed_parts).map(([name, contract]) => (
+                <div key={name} className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3">
+                  <div className="font-mono text-xs text-emerald-800">{name}</div>
+                  <ul className="mt-1 text-xs text-gray-700 space-y-0.5">
+                    {summarizeContract(contract).map((line) => <li key={line}>{line}</li>)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+          {current.executed_sql && (
+            <details className="mt-4">
+              <summary className="cursor-pointer text-xs font-semibold text-gray-700 uppercase tracking-wider">Executed SQL</summary>
+              <pre className="mt-2 p-4 rounded-lg bg-gray-800 text-gray-100 overflow-x-auto text-sm font-mono leading-relaxed whitespace-pre-wrap"><code>{executed}</code></pre>
+            </details>
+          )}
         </div>
         {multi && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 bg-gray-50 rounded-b-xl">

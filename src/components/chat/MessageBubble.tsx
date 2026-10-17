@@ -9,7 +9,8 @@ import { DataTable } from "./DataTable";
 import { ExportButton } from "./ExportButton";
 import { SqlModal } from "./SqlModal";
 import Link from "next/link";
-import { Copy, Check, Brain, ChevronDown, Database, Wrench, AlertCircle, AlertTriangle, LayoutDashboard, ShieldCheck } from "lucide-react";
+import { Copy, Check, Brain, ChevronDown, Database, Wrench, AlertCircle, AlertTriangle, LayoutDashboard, ShieldCheck, ShieldHalf } from "lucide-react";
+import { governanceOf } from "@/lib/provenance";
 
 function extractText(children: React.ReactNode): string {
   if (typeof children === "string") return children;
@@ -77,7 +78,8 @@ function InlineThinking({ steps }: { steps: ThinkingStep[] }) {
 function ProvenanceBar({ artifact }: { artifact: Artifact }) {
   const p = artifact.provenance;
   if (!p) return null;
-  if (!p.governed) {
+  const level = governanceOf(p);
+  if (level === "none") {
     return (
       <div className="flex items-start gap-1.5 px-3 py-1.5 bg-amber-50 border-t border-amber-100 text-[11px] text-amber-800">
         <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
@@ -86,14 +88,19 @@ function ProvenanceBar({ artifact }: { artifact: Artifact }) {
     );
   }
   const refs = [...(p.metrics ?? []), ...(p.measures ?? [])];
+  const partial = level === "partial";
+  const fromSql = p.governance !== undefined;
   return (
     <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 bg-gray-50 border-t border-gray-100 text-[11px]">
-      <ShieldCheck size={12} className="text-emerald-600" />
+      {partial ? <ShieldHalf size={12} className="text-amber-600" /> : <ShieldCheck size={12} className="text-emerald-600" />}
+      {fromSql && <strong className={partial ? "text-amber-800" : "text-emerald-700"}>{partial ? "Partly governed" : "Governed"}</strong>}
       {refs.map((r) => <span key={r} className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono">{r}</span>)}
       {(p.overlays ?? []).map((o) => (
         <span key={o} title="Your institution's override of the canonical definition"
           className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 font-mono">your override {o}</span>
       ))}
+      {fromSql && p.rows === "modified" && <span className="text-gray-500">Rows come from outside the governed definitions</span>}
+      {partial && p.reason && <span className="text-gray-500">{p.reason}</span>}
       {artifact.query && (
         <Link href={`/cards/new?contract=${encodeURIComponent(JSON.stringify(artifact.query))}&name=${encodeURIComponent(artifact.title ?? "")}`}
           className="ml-auto flex items-center gap-1 text-[#0066FF] hover:underline">
@@ -110,7 +117,7 @@ function ArtifactRenderer({ artifact }: { artifact: Artifact }) {
       return (
         <div className="bg-white rounded-lg overflow-hidden shadow-sm">
           {artifact.title && <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 font-medium text-sm text-gray-700">{artifact.title}</div>}
-          <DataTable data={artifact.data as { rows: Record<string, unknown>[]; columns: string[] }} />
+          <DataTable data={artifact.data as { rows: Record<string, unknown>[]; columns: string[] }} provenance={artifact.provenance} />
           <ProvenanceBar artifact={artifact} />
         </div>
       );
