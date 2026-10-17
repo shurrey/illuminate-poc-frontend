@@ -1,7 +1,7 @@
 "use client";
 
 import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession } from "amazon-cognito-identity-js";
-import { endSession } from "@/lib/session";
+import { endSession, sessionCheck } from "@/lib/session";
 import { clearAppStorage } from "@/lib/profileImport";
 
 interface AuthState {
@@ -91,9 +91,14 @@ class AuthService {
     if (wasSignedIn) this.expiredListeners.forEach((l) => l());
   }
 
-  /** fetch with the ID token; a 401 or a failed refresh ends the session and notifies listeners. */
+  /**
+   * fetch with the ID token; a 401 or a failed refresh ends the session and notifies listeners.
+   * Throws without sending when the session ended while the token was obtained, so one user's request never carries another's token.
+   */
   async authedFetch(input: string, init: RequestInit = {}): Promise<Response> {
+    const live = sessionCheck();
     const token = await this.getValidToken();
+    if (!live()) throw new Error("The session ended before the request was sent");
     const headers = { ...(init.headers as Record<string, string> | undefined), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     const resp = await fetch(input, { ...init, headers });
     if (resp.status === 401 && token) this.expireSession();

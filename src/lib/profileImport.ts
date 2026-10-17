@@ -1,3 +1,4 @@
+import { sessionCheck } from "./session";
 import { userStorageKey } from "./userStorage";
 
 type KeyStorage = Pick<Storage, "getItem" | "removeItem" | "key" | "length">;
@@ -59,13 +60,19 @@ export function dropUnownedProfileKeys(storage: KeyStorage = localStorage): void
   }
 }
 
-/** Removes every `illuminate-` key; `illuminate_auth` (underscore) belongs to authService. */
+const isUnimportedUserKey = (key: string) =>
+  [CARDS_KEY, QUERIES_KEY].some((base) => key.startsWith(`${base}:`) && key.length > base.length + 1);
+
+/**
+ * Removes every `illuminate-` key except each user's unimported cards and queries, which stay until that
+ * user's import succeeds; only the matching signed-in user ever reads them. `illuminate_auth` belongs to authService.
+ */
 export function clearAppStorage(storage: KeyStorage = localStorage): void {
   try {
     const keys: string[] = [];
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i);
-      if (key?.startsWith("illuminate-")) keys.push(key);
+      if (key?.startsWith("illuminate-") && !isUnimportedUserKey(key)) keys.push(key);
     }
     keys.forEach((key) => storage.removeItem(key));
   } catch {}
@@ -93,4 +100,44 @@ export async function importLocalProfile(
   } catch {
     return "failed";
   }
+}
+
+type Post = Parameters<typeof importLocalProfile>[1];
+
+interface ImportRunnerOptions {
+  retryDelayMs?: number;
+  wait?: (ms: number) => Promise<void>;
+  storage?: KeyStorage;
+}
+
+/**
+ * Returns run(sub): imports at most once per session once an attempt settles; a failure is retried once after
+ * retryDelayMs, then left for the next page load. Resolves null when this session already imported for sub.
+ */
+export function createImportRunner(
+  post: Post,
+  { retryDelayMs = 5000, wait = (ms) => new Promise((r) => setTimeout(r, ms)), storage }: ImportRunnerOptions = {},
+): (sub: string) => Promise<ImportOutcome | null> {
+  let settled: { sub: string; live: () => boolean } | null = null;
+  let running: { sub: string; live: () => boolean; promise: Promise<ImportOutcome> } | null = null;
+
+  return (sub) => {
+    if (settled && settled.sub === sub && settled.live()) return Promise.resolve(null);
+    if (running && running.sub === sub && running.live()) return running.promise;
+    const live = sessionCheck();
+    const attempt = () => importLocalProfile(sub, post, storage);
+    const promise = (async () => {
+      let outcome = await attempt();
+      if (outcome === "failed" && live()) {
+        await wait(retryDelayMs);
+        if (live()) outcome = await attempt();
+      }
+      if (outcome !== "failed" && live()) settled = { sub, live };
+      return outcome;
+    })().finally(() => {
+      if (running?.promise === promise) running = null;
+    });
+    running = { sub, live, promise };
+    return promise;
+  };
 }
