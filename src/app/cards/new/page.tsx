@@ -25,7 +25,7 @@ function parseContract(raw: string | null): QueryContract | null {
 function CardBuilderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { addCard } = useCardStore();
+  const { addCard, error: saveError } = useCardStore();
   const { catalog, error: catalogError } = useSemanticCatalog();
   const gen = useSemanticGeneration();
 
@@ -40,6 +40,8 @@ function CardBuilderContent() {
   const [description, setDescription] = useState("");
   const [format, setFormat] = useState<CardFormat>("number");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const contract = useMemo(() => (source ? kpiContract(source) : null), [source]);
   const dropped = [
@@ -83,9 +85,11 @@ function CardBuilderContent() {
 
   const ungoverned = gen.result.provenance?.governed === false;
 
-  const handleSave = () => {
-    if (!contract || !name.trim()) return;
-    addCard({
+  const handleSave = async () => {
+    if (!contract || !name.trim() || saving) return;
+    setSaving(true);
+    setSaveFailed(false);
+    const ok = await addCard({
       id: `custom-${crypto.randomUUID()}`,
       label: name.trim(),
       description: description.trim() || name.trim(),
@@ -96,6 +100,11 @@ function CardBuilderContent() {
       isBuiltIn: false,
       enabled: true,
     });
+    setSaving(false);
+    if (!ok) {
+      setSaveFailed(true);
+      return;
+    }
     setSaved(true);
     setTimeout(() => router.push("/"), 1500);
   };
@@ -209,10 +218,13 @@ function CardBuilderContent() {
           {saved ? (
             <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium"><Check size={16} /> Card created! Redirecting to dashboard...</div>
           ) : (
-            <button onClick={handleSave} disabled={!name.trim() || !!previewError}
+            <>
+            {saveFailed && <div role="alert" className="text-sm text-red-600">{saveError ?? "The card could not be saved"}</div>}
+            <button onClick={handleSave} disabled={!name.trim() || !!previewError || saving}
               className="flex items-center gap-1.5 px-4 py-2 bg-[#0066FF] hover:bg-[#0052cc] text-white text-sm font-medium rounded-lg disabled:opacity-50">
-              <Save size={14} /> Create Card
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Create Card
             </button>
+            </>
           )}
         </div>
       )}

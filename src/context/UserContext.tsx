@@ -1,6 +1,11 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useCallback } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { mockNotifications } from "@/data/mockAlerts";
+import { useProfileStore } from "@/hooks/useProfileStore";
+import { ProfileStore, addRecent, markRead, toggleFavorite as toggledFavorite } from "@/lib/profileStore";
+import * as api from "@/services/profileApi";
 
 interface UserContextType {
   favorites: string[];
@@ -12,77 +17,64 @@ interface UserContextType {
   markAllNotificationsRead: () => void;
   visibleWidgets: string[];
   setVisibleWidgets: (widgets: string[]) => void;
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+  clearError: () => void;
+  reload: () => Promise<boolean>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+const DEFAULTS: api.PrefsView = {
+  favorites: [], recentReports: [], readNotifications: [], visibleWidgets: ["ai", "kpis", "feed", "quickaccess"], version: 0,
+};
+// The notification feed is still mock data; marking all read covers every notification it shows.
+const ALL_NOTIFICATION_IDS = mockNotifications.map((n) => n.id);
+
+function createStore() {
+  return new ProfileStore<api.PrefsView>(DEFAULTS, api.getPrefs, api.isConflict);
+}
+
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [favorites, setFavorites] = useState<string[]>([]);
-  const [recentReports, setRecentReports] = useState<string[]>([]);
-  const [readNotifications, setReadNotifications] = useState<string[]>([]);
-  const [visibleWidgets, setVisibleWidgets] = useState<string[]>(["ai", "kpis", "feed", "quickaccess"]);
-  const [hydrated, setHydrated] = useState(false);
+  const { user } = useAuth();
+  const [store, { value, loading, loaded, error }] = useProfileStore(createStore, user?.id ?? null);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("illuminate-user");
-    if (stored) {
-      const data = JSON.parse(stored);
-      if (data.favorites) setFavorites(data.favorites);
-      if (data.recentReports) setRecentReports(data.recentReports);
-      if (data.readNotifications) setReadNotifications(data.readNotifications);
-      if (data.visibleWidgets) setVisibleWidgets(data.visibleWidgets);
-    }
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(
-      "illuminate-user",
-      JSON.stringify({ favorites, recentReports, readNotifications, visibleWidgets })
-    );
-  }, [favorites, recentReports, readNotifications, visibleWidgets, hydrated]);
-
-  const toggleFavorite = useCallback((reportId: string) => {
-    setFavorites((prev) =>
-      prev.includes(reportId)
-        ? prev.filter((id) => id !== reportId)
-        : [...prev, reportId]
-    );
-  }, []);
-
-  const addRecentReport = useCallback((reportId: string) => {
-    setRecentReports((prev) => {
-      const filtered = prev.filter((id) => id !== reportId);
-      return [reportId, ...filtered].slice(0, 5);
+  const change = useCallback((apply: (p: api.PrefsView) => api.PrefsView) => {
+    const current = store.snapshot().value;
+    if (JSON.stringify(apply(current)) === JSON.stringify(current)) return;
+    void store.mutate({
+      apply,
+      send: (next) => api.putPrefs(next, next.version),
+      merge: (_, view: api.PrefsView) => view,
     });
-  }, []);
+  }, [store]);
 
-  const markNotificationRead = useCallback((id: string) => {
-    setReadNotifications((prev) =>
-      prev.includes(id) ? prev : [...prev, id]
-    );
-  }, []);
-
-  const markAllNotificationsRead = useCallback(() => {
-    setReadNotifications((prev) => {
-      const allIds = ["n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8"];
-      return [...new Set([...prev, ...allIds])];
-    });
-  }, []);
+  const toggleFavorite = useCallback((id: string) => change((p) => toggledFavorite(p, id)), [change]);
+  const addRecentReport = useCallback((id: string) => change((p) => addRecent(p, id)), [change]);
+  const markNotificationRead = useCallback((id: string) => change((p) => markRead(p, [id])), [change]);
+  const markAllNotificationsRead = useCallback(() => change((p) => markRead(p, ALL_NOTIFICATION_IDS)), [change]);
+  const setVisibleWidgets = useCallback((widgets: string[]) => change((p) => ({ ...p, visibleWidgets: widgets })), [change]);
+  const clearError = useCallback(() => store.clearError(), [store]);
+  const reload = useCallback(() => store.load(), [store]);
 
   return (
     <UserContext.Provider
       value={{
-        favorites,
+        favorites: value.favorites,
         toggleFavorite,
-        recentReports,
+        recentReports: value.recentReports,
         addRecentReport,
-        readNotifications,
+        readNotifications: value.readNotifications,
         markNotificationRead,
         markAllNotificationsRead,
-        visibleWidgets,
+        visibleWidgets: value.visibleWidgets,
         setVisibleWidgets,
+        loading,
+        loaded,
+        error,
+        clearError,
+        reload,
       }}
     >
       {children}

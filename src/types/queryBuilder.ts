@@ -7,5 +7,5 @@ export interface SavedQuery {
   contract: QueryContract;
   description: string;
   createdAt: string;
-  lastUsedAt: string;
+  lastUsedAt: string | null;
 }

@@ -7,6 +7,8 @@ import { CardStoreProvider } from "@/context/CardStoreContext";
 import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { HelpButton } from "@/components/HelpButton";
+import { ProfileImport } from "@/components/ProfileImport";
+import { ProfileNotices } from "@/components/ProfileNotices";
 
 export const metadata: Metadata = {
   title: "Blackboard Illuminate",
@@ -26,6 +28,8 @@ export default function RootLayout({
             <QueryBuilderProvider>
               <CardStoreProvider>
                 <Navigation />
+                <ProfileNotices />
+                <ProfileImport />
                 <main className="flex-1">{children}</main>
                 <Footer />
                 <HelpButton />

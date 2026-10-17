@@ -2,6 +2,7 @@
 
 import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession } from "amazon-cognito-identity-js";
 import { endSession } from "@/lib/session";
+import { clearAppStorage } from "@/lib/profileImport";
 
 interface AuthState {
   user: { id: string; name: string; email?: string } | null;
@@ -233,6 +234,7 @@ class AuthService {
       }
       keysToRemove.forEach((key) => localStorage.removeItem(key));
     }
+    clearAppStorage();
     endSession();
   }
 }

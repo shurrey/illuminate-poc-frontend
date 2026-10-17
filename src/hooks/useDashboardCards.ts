@@ -23,9 +23,10 @@ const PENDING: Loaded = { value: null, sql: null, provenance: null, loading: tru
 /** A card's identity for fetching: a changed contract under the same id is a new query. */
 const keyOf = (card: DashboardCard) => `${card.id}:${JSON.stringify(card.contract)}`;
 
-/** Runs each enabled card's contract once per contract; failed cards can be retried. */
+/** Runs each enabled card's contract once per contract; failed cards can be retried. While the profile loads, the
+ * built-in cards are returned as placeholders and nothing runs. */
 export function useDashboardCards(): CardResult[] {
-  const { enabledCards } = useCardStore();
+  const { cards, enabledCards, loaded } = useCardStore();
   const [results, setResults] = useState<Record<string, Loaded>>({});
   const [attempts, setAttempts] = useState<Record<string, number>>({});
   const started = useRef<Set<string>>(new Set());
@@ -50,6 +51,8 @@ export function useDashboardCards(): CardResult[] {
   }, [enabledCards, attempts]);
 
   const retry = useCallback((key: string) => setAttempts((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 })), []);
+
+  if (!loaded) return cards.map((card) => ({ card, ...PENDING, retry: () => {} }));
 
   return enabledCards.map((card) => {
     const key = keyOf(card);

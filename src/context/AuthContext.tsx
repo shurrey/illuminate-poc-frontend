@@ -9,6 +9,8 @@ interface AuthContextType {
   user: { id: string; name: string; email?: string } | null;
   isAdmin: boolean;
   tenant: Tenant | null;
+  /** True when /api/v1/me failed for the signed-in user. */
+  tenantError: boolean;
   login: (username: string, password: string) => Promise<void>;
   signOut: () => void;
   isLoading: boolean;
@@ -98,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthContextType["user"]>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [tenantError, setTenantError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Changes whenever a session starts or ends, remounting the app so no page keeps another session's state.
@@ -106,7 +109,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
-    fetchTenant().then((t) => { if (!cancelled) setTenant(t); });
+    fetchTenant().then((t) => {
+      if (cancelled) return;
+      setTenant(t);
+      setTenantError(t === null);
+    });
     return () => { cancelled = true; };
   }, [isAuthenticated]);
 
@@ -121,6 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setIsAdmin(false);
       setTenant(null);
+      setTenantError(false);
       setError("Your session has expired. Please sign in again.");
     });
   }, []);
@@ -148,10 +156,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setIsAdmin(false);
     setTenant(null);
+    setTenantError(false);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, isAdmin, tenant, login, signOut, isLoading, error }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, isAdmin, tenant, tenantError, login, signOut, isLoading, error }}>
       {/* Always render children so the router stays mounted and knows the URL */}
       <React.Fragment key={session}>{children}</React.Fragment>
 

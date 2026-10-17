@@ -170,11 +170,12 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
       {showSave && (
         <SaveQueryDialog initialName={initialName ?? prompt.slice(0, 60)} initialDescription={initialDescription ?? ""}
           onClose={() => setShowSave(false)}
-          onSave={(name, description) => {
+          onSave={async (name, description) => {
             const now = new Date().toISOString();
-            saveQuery({ id: crypto.randomUUID(), name, description, prompt: prompt.trim(), contract, createdAt: now, lastUsedAt: now });
             setShowSave(false);
-            setSavedName(name);
+            if (await saveQuery({ id: crypto.randomUUID(), name, description, prompt: prompt.trim(), contract, createdAt: now, lastUsedAt: null })) {
+              setSavedName(name);
+            }
           }} />
       )}
     </div>
