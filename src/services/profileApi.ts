@@ -13,7 +13,7 @@ export interface CardLayout { order: string[]; disabled: string[]; hidden: strin
 export interface Prefs { favorites: string[]; recentReports: string[]; readNotifications: string[]; visibleWidgets: string[] }
 export interface PrefsView extends Prefs { version: number }
 export interface ImportResult {
-  status: "imported" | "already_imported";
+  status: "imported" | "already_imported" | "partial";
   cards?: number;
   queries?: number;
   skipped?: { kind: string; name: string; reason: string }[];

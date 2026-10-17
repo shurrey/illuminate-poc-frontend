@@ -135,6 +135,13 @@ describe("importLocalProfile", () => {
     expect([...storage.store.keys()].sort()).toEqual(["illuminate-queries-v2:alice", "illuminate-user"]);
   });
 
+  it("keeps the keys when the server imported only part of them", async () => {
+    const storage = saved();
+    const post = vi.fn().mockResolvedValue({ status: "partial", cards: 0, queries: 0, skipped: [] });
+    expect(await importLocalProfile("alice", post, storage)).toBe("partial");
+    expect([...storage.store.keys()].sort()).toEqual(["illuminate-queries-v2:alice", "illuminate-user"]);
+  });
+
   it("a failed import keeps the keys through sign-out, and a later run imports them", async () => {
     const storage = saved();
     expect(await importLocalProfile("alice", async () => { throw new Error("down"); }, storage)).toBe("failed");
@@ -180,6 +187,19 @@ describe("createImportRunner", () => {
 
     const nextLoad = createImportRunner(vi.fn().mockImplementation(ok), { storage, wait: async () => {} });
     expect(await nextLoad("alice")).toBe("imported");
+    expect(storage.store.size).toBe(0);
+  });
+
+  it("treats a partial import like a failure: retried, and not settled for the session", async () => {
+    const storage = saved();
+    const partial = () => Promise.resolve({ status: "partial" as const });
+    const post = vi.fn().mockImplementation(partial);
+    const run = createImportRunner(post, { storage, wait: async () => {} });
+    expect(await run("alice")).toBe("partial");
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(storage.store.has("illuminate-queries-v2:alice")).toBe(true);
+    post.mockImplementation(ok);
+    expect(await run("alice")).toBe("imported");
     expect(storage.store.size).toBe(0);
   });
 

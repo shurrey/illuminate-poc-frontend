@@ -26,7 +26,7 @@ export function ProfileImport() {
     if (!ready || !user) return;
     const live = sessionCheck();
     runImport(user.id).then((outcome) => {
-      if (!live() || outcome !== "imported") return;
+      if (!live() || (outcome !== "imported" && outcome !== "partial")) return;
       reloadCards();
       reloadQueries();
       reloadPrefs();

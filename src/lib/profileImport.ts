@@ -78,12 +78,13 @@ export function clearAppStorage(storage: KeyStorage = localStorage): void {
   } catch {}
 }
 
-export type ImportOutcome = "imported" | "already_imported" | "nothing" | "failed";
+/** partial: the server saved some items but not all, and will take the rest on a later import. */
+export type ImportOutcome = "imported" | "already_imported" | "partial" | "nothing" | "failed";
 
-/** Posts what this browser saved for sub; the keys are removed only once the server has the items. */
+/** Posts what this browser saved for sub; the keys are removed only once the server has every item. */
 export async function importLocalProfile(
   sub: string,
-  post: (profile: LocalProfile) => Promise<{ status: "imported" | "already_imported" }>,
+  post: (profile: LocalProfile) => Promise<{ status: "imported" | "already_imported" | "partial" }>,
   storage: KeyStorage = localStorage,
 ): Promise<ImportOutcome> {
   dropUnownedProfileKeys(storage);
@@ -94,6 +95,7 @@ export async function importLocalProfile(
   }
   try {
     const { status } = await post(profile);
+    if (status === "partial") return "partial";
     if (status !== "imported" && status !== "already_imported") return "failed";
     clearLocalProfile(sub, storage);
     return status;
@@ -111,8 +113,8 @@ interface ImportRunnerOptions {
 }
 
 /**
- * Returns run(sub): imports at most once per session once an attempt settles; a failure is retried once after
- * retryDelayMs, then left for the next page load. Resolves null when this session already imported for sub.
+ * Returns run(sub): imports at most once per session once an attempt settles; a failed or partial import is
+ * retried once after retryDelayMs, then left for the next page load. Resolves null when this session already imported for sub.
  */
 export function createImportRunner(
   post: Post,
@@ -128,11 +130,12 @@ export function createImportRunner(
     const attempt = () => importLocalProfile(sub, post, storage);
     const promise = (async () => {
       let outcome = await attempt();
-      if (outcome === "failed" && live()) {
+      const unsettled = (o: ImportOutcome) => o === "failed" || o === "partial";
+      if (unsettled(outcome) && live()) {
         await wait(retryDelayMs);
         if (live()) outcome = await attempt();
       }
-      if (outcome !== "failed" && live()) settled = { sub, live };
+      if (!unsettled(outcome) && live()) settled = { sub, live };
       return outcome;
     })().finally(() => {
       if (running?.promise === promise) running = null;
