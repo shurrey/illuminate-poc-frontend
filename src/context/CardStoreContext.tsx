@@ -26,8 +26,9 @@ interface CardStoreContextType {
 
 const CardStoreContext = createContext<CardStoreContextType | undefined>(undefined);
 
-const BUILT_IN_IDS = fallbackCards.map((c) => c.id);
-const LOADING: api.CardsView = { cards: fallbackCards.map((c) => ({ ...c, isBuiltIn: true, enabled: true })), version: 0 };
+const LOADING: api.CardsView = {
+  cards: fallbackCards.map((c) => ({ ...c, isBuiltIn: true, enabled: true })), hidden: [], disabled: [], version: 0,
+};
 const takeView = (_: api.CardsView, view: api.CardsView) => view;
 
 function createStore() {
@@ -42,7 +43,7 @@ export function CardStoreProvider({ children }: { children: React.ReactNode }) {
 
   const relayout = useCallback((change: (cards: DashboardCard[]) => DashboardCard[]) => store.mutate({
     apply: (s) => ({ ...s, cards: change(s.cards) }),
-    send: (next) => api.putCardLayout(layoutOf(next.cards, BUILT_IN_IDS), next.version),
+    send: (next) => api.putCardLayout(layoutOf(next.cards, next.hidden), next.version),
     merge: takeView,
   }), [store]);
 
@@ -64,7 +65,10 @@ export function CardStoreProvider({ children }: { children: React.ReactNode }) {
   }), [store]);
 
   const removeCard = useCallback((id: string) => store.mutate({
-    apply: (s) => ({ ...s, cards: s.cards.filter((c) => c.id !== id) }),
+    apply: (s) => {
+      const builtIn = s.cards.some((c) => c.id === id && c.isBuiltIn);
+      return { ...s, cards: s.cards.filter((c) => c.id !== id), hidden: builtIn ? [...s.hidden, id] : s.hidden };
+    },
     send: () => api.deleteCard(id),
     merge: takeView,
   }), [store]);
@@ -75,7 +79,7 @@ export function CardStoreProvider({ children }: { children: React.ReactNode }) {
   const resetToDefaults = useCallback(() => store.mutate({
     apply: (s) => {
       const builtIns = s.cards.filter((c) => c.isBuiltIn).map((c) => ({ ...c, enabled: true }));
-      return { ...s, cards: [...builtIns, ...s.cards.filter((c) => !c.isBuiltIn)] };
+      return { ...s, cards: [...builtIns, ...s.cards.filter((c) => !c.isBuiltIn)], hidden: [] };
     },
     send: api.resetCards,
     merge: takeView,

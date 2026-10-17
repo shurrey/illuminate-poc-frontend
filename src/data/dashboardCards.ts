@@ -54,8 +54,8 @@ function metricCard(id: string, metric: string, label: string, description: stri
 }
 
 /**
- * A copy of the server's built-in cards (semantic_layer/data/default_cards.json), shown only while the profile loads
- * and used to tell which built-ins the user hid. Never persisted.
+ * A copy of the server's built-in cards (semantic_layer/data/default_cards.json), shown only while the profile loads.
+ * Never persisted.
  */
 export const fallbackCards: DashboardCard[] = [
   metricCard("active-students", "metric.active_students.v1", "Active Students",

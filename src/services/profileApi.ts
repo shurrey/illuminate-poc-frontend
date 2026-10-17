@@ -7,7 +7,8 @@ import type { LocalProfile } from "@/lib/profileImport";
 
 const API_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
 
-export interface CardsView { cards: DashboardCard[]; version: number }
+/** hidden: built-in ids the user hid, absent from cards; disabled: ids of cards shown as off. */
+export interface CardsView { cards: DashboardCard[]; hidden: string[]; disabled: string[]; version: number }
 export interface CardLayout { order: string[]; disabled: string[]; hidden: string[] }
 export interface Prefs { favorites: string[]; recentReports: string[]; readNotifications: string[]; visibleWidgets: string[] }
 export interface PrefsView extends Prefs { version: number }

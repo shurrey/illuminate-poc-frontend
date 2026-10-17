@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { endSession } from "./session";
 import {
-  ProfileStore, addRecent, begin, confirm, discard, hiddenBuiltIns, layoutOf, markRead, moved, settled, shown,
+  ProfileStore, addRecent, begin, confirm, discard, layoutOf, markRead, moved, settled, shown,
   toggleFavorite, toggled,
 } from "./profileStore";
 
@@ -50,9 +50,13 @@ describe("card reducers", () => {
     expect(moved(cards, "c", "down")).toBe(cards);
   });
 
-  it("derives the layout, keeping built-ins the user hid", () => {
-    expect(hiddenBuiltIns(cards, ["a", "x"])).toEqual(["x"]);
-    expect(layoutOf(cards, ["a", "x"])).toEqual({ order: ["a", "b", "c"], disabled: ["b"], hidden: ["x"] });
+  it("derives the layout and passes the server's hidden list through", () => {
+    expect(layoutOf(cards, ["x"])).toEqual({ order: ["a", "b", "c"], disabled: ["b"], hidden: ["x"] });
+  });
+
+  it("toggling or moving leaves the hidden list as the server sent it", () => {
+    expect(layoutOf(moved(toggled(cards, "a"), "c", "up"), ["x"]))
+      .toEqual({ order: ["a", "c", "b"], disabled: ["a", "b"], hidden: ["x"] });
   });
 });
 

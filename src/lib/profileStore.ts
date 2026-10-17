@@ -26,14 +26,11 @@ export function moved<C extends LayoutCard>(cards: C[], id: string, direction: "
   return next;
 }
 
-/** The server's card list omits hidden built-ins, so they are the known built-ins it did not return. */
-export const hiddenBuiltIns = (cards: LayoutCard[], builtInIds: string[]): string[] =>
-  builtInIds.filter((id) => !cards.some((c) => c.id === id));
-
-export const layoutOf = (cards: LayoutCard[], builtInIds: string[]) => ({
+/** The layout to save: cards in their shown order, plus the built-ins the server reported as hidden. */
+export const layoutOf = (cards: LayoutCard[], hidden: string[]) => ({
   order: cards.map((c) => c.id),
   disabled: cards.filter((c) => c.enabled === false).map((c) => c.id),
-  hidden: hiddenBuiltIns(cards, builtInIds),
+  hidden,
 });
 
 interface PrefLists { favorites: string[]; recentReports: string[]; readNotifications: string[] }
