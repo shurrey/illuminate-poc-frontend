@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { agentClient, ConversationNotFound, type StoredMessage } from "@/services/agentClient";
 import type { Message, ChatState, ThinkingStep, AgentResponse } from "@/types/chat";
+import { onSessionEnd, sessionCheck } from "@/lib/session";
 
 interface UseChatReturn extends ChatState {
   sendMessage: (text: string) => Promise<void>;
@@ -24,6 +25,8 @@ function storeContext(id: string | null) {
     else localStorage.removeItem(CONTEXT_KEY);
   } catch {}
 }
+
+onSessionEnd(() => storeContext(null));
 
 function storedContext(): string | null {
   try {
@@ -90,6 +93,7 @@ export function useChat({ restore = true }: { restore?: boolean } = {}): UseChat
       if (!text.trim() || isLoading) return;
 
       abortControllerRef.current = new AbortController();
+      const live = sessionCheck();
       const requestId = crypto.randomUUID();
       currentRequestIdRef.current = requestId;
 
@@ -213,7 +217,7 @@ export function useChat({ restore = true }: { restore?: boolean } = {}): UseChat
               const data = (event.data || {}) as AgentResponse;
               const newCtx = data.context_id || data.contextId;
               // The server may replace an id it no longer recognises; always follow it.
-              if (newCtx) { setContextId(newCtx); storeContext(newCtx); }
+              if (newCtx && live()) { setContextId(newCtx); storeContext(newCtx); }
               const finalSteps = [...thinkingStepsRef.current];
               setMessages((prev) => {
                 if (prev.length === 0) return prev;
@@ -271,9 +275,17 @@ export function useChat({ restore = true }: { restore?: boolean } = {}): UseChat
     setIsThinkingExpanded(true);
   }, []);
 
+  useEffect(() => onSessionEnd(() => {
+    abortControllerRef.current?.abort();
+    setIsLoading(false);
+    clearMessages();
+  }), [clearMessages]);
+
   const loadConversation = useCallback(async (id: string) => {
+    const live = sessionCheck();
     try {
       const stored = await agentClient.getConversation(id);
+      if (!live()) return;
       setMessages(stored.map(fromStored));
       setContextId(id);
       storeContext(id);

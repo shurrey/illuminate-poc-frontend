@@ -1,7 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useCallback } from "react";
 import type { SavedQuery } from "@/types/queryBuilder";
+import { useAuth } from "@/context/AuthContext";
+import { useUserStoredState } from "@/lib/userStorage";
 
 interface QueryBuilderContextType {
   queries: SavedQuery[];
@@ -16,34 +18,29 @@ const QueryBuilderContext = createContext<QueryBuilderContextType | undefined>(u
 // v2: saved queries are contracts; v1 held SQL and is not migrated.
 const STORAGE_KEY = "illuminate-queries-v2";
 
+function loadQueries(stored: string | null): SavedQuery[] {
+  try {
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function QueryBuilderProvider({ children }: { children: React.ReactNode }) {
-  const [queries, setQueries] = useState<SavedQuery[]>([]);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setQueries(JSON.parse(stored));
-    } catch {}
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(queries));
-  }, [queries, hydrated]);
+  const { user } = useAuth();
+  const [queries, setQueries] = useUserStoredState(STORAGE_KEY, user?.id ?? null, loadQueries);
 
   const saveQuery = useCallback((q: SavedQuery) => {
     setQueries((prev) => [q, ...prev.filter((p) => p.id !== q.id)]);
-  }, []);
+  }, [setQueries]);
 
   const updateQuery = useCallback((id: string, updates: Partial<SavedQuery>) => {
     setQueries((prev) => prev.map((q) => (q.id === id ? { ...q, ...updates } : q)));
-  }, []);
+  }, [setQueries]);
 
   const deleteQuery = useCallback((id: string) => {
     setQueries((prev) => prev.filter((q) => q.id !== id));
-  }, []);
+  }, [setQueries]);
 
   const getQuery = useCallback((id: string) => queries.find((q) => q.id === id), [queries]);
 

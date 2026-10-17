@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authService } from "@/services/authService";
-import { reportResults } from "@/reports/resultCache";
 import { fetchTenant, type Tenant } from "@/services/meApi";
 
 interface AuthContextType {
@@ -101,6 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Changes whenever a session starts or ends, remounting the app so no page keeps another session's state.
+  const [session, setSession] = useState(0);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -115,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAdmin(authService.isAdmin());
     setIsLoading(false);
     return authService.onSessionExpired(() => {
-      reportResults.clear();
+      setSession((n) => n + 1);
       setIsAuthenticated(false);
       setUser(null);
       setIsAdmin(false);
@@ -131,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const u = await authService.login(username, password);
       setUser(u);
       setIsAdmin(authService.isAdmin());
+      setSession((n) => n + 1);
       setIsAuthenticated(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
@@ -140,8 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
-    reportResults.clear();
     authService.logout();
+    setSession((n) => n + 1);
     setIsAuthenticated(false);
     setUser(null);
     setIsAdmin(false);
@@ -151,7 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{ isAuthenticated, user, isAdmin, tenant, login, signOut, isLoading, error }}>
       {/* Always render children so the router stays mounted and knows the URL */}
-      {children}
+      <React.Fragment key={session}>{children}</React.Fragment>
 
       {/* Overlay login/loading on top when not authenticated */}
       {isLoading && !isAuthenticated && (

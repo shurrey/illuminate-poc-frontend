@@ -12,6 +12,7 @@ import {
   type Relationship,
   type PreviewResponse,
 } from "@/services/dictionaryApi";
+import { onSessionEnd, sessionCheck } from "@/lib/session";
 
 interface DictionaryState {
   catalog: Record<string, SchemaInfo>;
@@ -31,6 +32,12 @@ export function useDictionary() {
   const [previews, setPreviews] = useState<Record<string, PreviewResponse>>({});
   const [previewLoading, setPreviewLoading] = useState<Record<string, boolean>>({});
   const fetchedRef = useRef(false);
+
+  // Previews hold rows of the signed-in tenant's tables; the next user on this tab must not see them.
+  useEffect(() => onSessionEnd(() => {
+    setPreviews({});
+    setPreviewLoading({});
+  }), []);
 
   // Load catalog + relationships on mount
   useEffect(() => {
@@ -67,17 +74,18 @@ export function useDictionary() {
     if (previews[key] || previewLoading[key]) return;
 
     setPreviewLoading((prev) => ({ ...prev, [key]: true }));
+    const live = sessionCheck();
 
     try {
       const data = await fetchPreview(schema, table, 20);
-      setPreviews((prev) => ({ ...prev, [key]: data }));
+      if (live()) setPreviews((prev) => ({ ...prev, [key]: data }));
     } catch (err) {
-      setPreviews((prev) => ({
+      if (live()) setPreviews((prev) => ({
         ...prev,
         [key]: { columns: [], rows: [], error: err instanceof Error ? err.message : "Failed" } as PreviewResponse & { error?: string },
       }));
     } finally {
-      setPreviewLoading((prev) => ({ ...prev, [key]: false }));
+      if (live()) setPreviewLoading((prev) => ({ ...prev, [key]: false }));
     }
   }, [previews, previewLoading]);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { authService } from "./authService";
+import { onSessionEnd, sessionCheck } from "@/lib/session";
 import type { CompiledQuery, QueryContract, SemanticCatalog, SemanticResult } from "@/types/semantic";
 
 const API_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
@@ -30,16 +31,20 @@ async function fail(resp: Response): Promise<never> {
   throw new SemanticApiError(message, resp.status, sql);
 }
 
+// The catalog carries the tenant's overlays, so it is dropped when the session ends.
 let catalogCache: { etag: string | null; catalog: SemanticCatalog } | null = null;
+onSessionEnd(() => { catalogCache = null; });
 
 /** The public catalog, revalidated with If-None-Match so unchanged catalogs cost a 304. */
 export async function getCatalog(): Promise<SemanticCatalog> {
+  const live = sessionCheck();
   const extra: Record<string, string> = catalogCache?.etag ? { "If-None-Match": catalogCache.etag } : {};
   const resp = await authService.authedFetch(`${API_URL}/api/v1/semantic/catalog`, { headers: headers(extra) });
   if (resp.status === 304 && catalogCache) return catalogCache.catalog;
   if (!resp.ok) return fail(resp);
-  catalogCache = { etag: resp.headers.get("ETag"), catalog: await resp.json() };
-  return catalogCache.catalog;
+  const fetched = { etag: resp.headers.get("ETag"), catalog: (await resp.json()) as SemanticCatalog };
+  if (live()) catalogCache = fetched;
+  return fetched.catalog;
 }
 
 export async function querySemantic(contract: QueryContract): Promise<SemanticResult> {
