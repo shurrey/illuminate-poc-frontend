@@ -16,6 +16,11 @@ describe("governanceOf", () => {
     expect(governanceOf({ governed: false, governance: "none" })).toBe("none");
     expect(governanceOf({ governed: true, governance: "full" })).toBe("full");
   });
+  it("treats unknown or contradictory values as none", () => {
+    expect(governanceOf({ governed: true, governance: "bogus" as never })).toBe("none");
+    expect(governanceOf({ governed: false, governance: "full" })).toBe("none");
+    expect(governanceOf({ governed: true, governance: "none" })).toBe("none");
+  });
   it("falls back to the boolean for query_semantic results", () => {
     expect(governanceOf({ governed: true })).toBe("full");
     expect(governanceOf({ governed: false })).toBe("none");
@@ -41,18 +46,30 @@ describe("columnMark", () => {
   });
 });
 
+describe("columnMark key matching", () => {
+  it("prefers an exact key over a case-insensitive one", () => {
+    const p: Provenance = { governed: false, columns: { a: { governed: false, reason: "x" }, A: { governed: true, definition: "d" } } };
+    expect(columnMark(p, "A")?.kind).toBe("governed");
+    expect(columnMark(p, "a")?.kind).toBe("ungoverned");
+  });
+});
+
 describe("cardBlockedReason", () => {
   it("allows a result that has a query contract", () => {
     expect(cardBlockedReason({ governed: true }, { metrics: ["m"] })).toBeNull();
   });
   it("blocks partly governed results", () => {
-    expect(cardBlockedReason(partial, undefined)).toMatch(/partly governed/i);
+    expect(cardBlockedReason(partial, undefined)).toMatchObject({ kind: "partial" });
   });
   it("blocks fully governed SQL results that have no contract", () => {
-    expect(cardBlockedReason({ governed: true, governance: "full" }, undefined)).toMatch(/written as SQL/);
+    expect(cardBlockedReason({ governed: true, governance: "full" }, undefined)).toMatchObject({ kind: "no_contract" });
   });
   it("blocks ungoverned results", () => {
-    expect(cardBlockedReason({ governed: false, governance: "none" }, undefined)).toMatch(/No governed metric answers this/);
+    expect(cardBlockedReason({ governed: false, governance: "none" }, undefined)).toMatchObject({ kind: "ungoverned" });
+  });
+  it("words the message for the thing being saved", () => {
+    expect(cardBlockedReason(partial, undefined, "query")?.message).toMatch(/saved as a query/);
+    expect(cardBlockedReason(partial, undefined)?.message).toMatch(/become a card/);
   });
   it("is null when there is no provenance", () => {
     expect(cardBlockedReason(undefined, undefined)).toBeNull();

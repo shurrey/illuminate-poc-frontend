@@ -83,7 +83,10 @@ function ProvenanceBar({ artifact }: { artifact: Artifact }) {
     return (
       <div className="flex items-start gap-1.5 px-3 py-1.5 bg-amber-50 border-t border-amber-100 text-[11px] text-amber-800">
         <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
-        <span><strong>Ungoverned</strong>{p.reason ? `: ${p.reason}` : ""}</span>
+        <span>
+          <strong>Ungoverned</strong>{p.reason ? `: ${p.reason}` : ""}
+          {p.rows === "modified" && ((p.metrics?.length ?? 0) + (p.measures?.length ?? 0)) > 0 && ". Rows come from outside the governed definitions"}
+        </span>
       </div>
     );
   }

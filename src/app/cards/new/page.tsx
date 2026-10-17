@@ -164,7 +164,7 @@ function CardBuilderContent() {
             {blocked && (
               <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
                 <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
-                <span>{blocked} {gen.result.provenance?.reason}</span>
+                <span>{blocked.message} {gen.result.provenance?.reason}</span>
               </div>
             )}
             {gen.result.contract && (

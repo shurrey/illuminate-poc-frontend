@@ -14,8 +14,8 @@ function ColumnMarker({ provenance, column }: { provenance?: Provenance; column:
   const mark = columnMark(provenance, column);
   if (!mark) return null;
   return mark.kind === "governed"
-    ? <span title={mark.tooltip} aria-label={mark.tooltip} className="text-emerald-600"><ShieldCheck size={12} /></span>
-    : <span title={mark.tooltip} aria-label={mark.tooltip} className="text-amber-600"><AlertTriangle size={12} /></span>;
+    ? <span role="img" tabIndex={0} title={mark.tooltip} aria-label={mark.tooltip} className="text-emerald-600"><ShieldCheck size={12} /></span>
+    : <span role="img" tabIndex={0} title={mark.tooltip} aria-label={mark.tooltip} className="text-amber-600"><AlertTriangle size={12} /></span>;
 }
 
 type SortDirection = "asc" | "desc" | null;

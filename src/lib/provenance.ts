@@ -1,8 +1,10 @@
 import type { ContractFilter, Governance, Provenance, QueryContract } from "@/types/semantic";
 
-/** query_semantic results carry no `governance`; for them the boolean says everything. */
+/** Anything unrecognised or contradictory counts as ungoverned; old artifacts without `governance` use the boolean. */
 export function governanceOf(p: Provenance): Governance {
-  return p.governance ?? (p.governed ? "full" : "none");
+  if (p.governance === undefined) return p.governed === true ? "full" : "none";
+  if (p.governance === "full") return p.governed !== false ? "full" : "none";
+  return p.governance === "partial" ? "partial" : "none";
 }
 
 export interface ColumnMark {
@@ -14,20 +16,29 @@ export interface ColumnMark {
 export function columnMark(p: Provenance | undefined, column: string): ColumnMark | null {
   if (!p?.columns) return null;
   const wanted = column.toLowerCase();
-  const key = Object.keys(p.columns).find((k) => k.toLowerCase() === wanted);
+  const key = column in p.columns ? column : Object.keys(p.columns).find((k) => k.toLowerCase() === wanted);
   if (key === undefined) return null;
   const c = p.columns[key];
   if (c.governed) return { kind: "governed", tooltip: c.definition ? `Governed: ${c.definition}` : "Governed" };
   return { kind: "ungoverned", tooltip: c.reason ? `Ungoverned: ${c.reason}` : "Ungoverned" };
 }
 
-/** Why a result cannot be pinned as a card, or null when it can. Only a query contract can be saved. */
-export function cardBlockedReason(p: Provenance | undefined, query: QueryContract | undefined): string | null {
+export interface CardBlock {
+  kind: "ungoverned" | "partial" | "no_contract";
+  message: string;
+}
+
+/** Why a result cannot be saved, or null when it can. Only a query contract can be saved. */
+export function cardBlockedReason(p: Provenance | undefined, query: QueryContract | undefined,
+                                  noun: "card" | "query" = "card"): CardBlock | null {
   if (query || !p) return null;
+  const what = noun === "card" ? "become a card" : "be saved as a query";
   const level = governanceOf(p);
-  if (level === "partial") return "This result is only partly governed, so it can't become a card.";
-  if (level === "full") return "This result was written as SQL rather than a governed query, so it can't become a card.";
-  return "No governed metric answers this, so it can't become a card.";
+  if (level === "partial") return { kind: "partial", message: `This result is only partly governed, so it can't ${what}.` };
+  if (level === "full") {
+    return { kind: "no_contract", message: `This result was written as SQL rather than a governed query, so it can't ${what}.` };
+  }
+  return { kind: "ungoverned", message: `No governed metric answers this, so it can't ${what}.` };
 }
 
 const OP_WORDS: Record<string, string> = {

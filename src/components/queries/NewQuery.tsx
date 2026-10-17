@@ -62,7 +62,7 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
     return () => { live = false; clearTimeout(t); };
   }, [contract, hasSelection]);
   const usable = hasSelection && !compileError;
-  const blocked = gen.result.contract ? null : cardBlockedReason(gen.result.provenance ?? undefined, undefined);
+  const blocked = gen.result.contract ? null : cardBlockedReason(gen.result.provenance ?? undefined, undefined, "query");
 
   const run = async () => {
     setRunning(true);
@@ -119,7 +119,7 @@ export function NewQuery({ initialContract, initialPrompt, initialName, initialD
       {blocked && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 space-y-2">
           <div className="flex gap-2"><AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
-            <span><strong>{blocked.startsWith("No governed") ? "Ungoverned." : "Not saved."}</strong> {blocked} {gen.result.provenance?.reason}</span>
+            <span><strong>{blocked.kind === "ungoverned" ? "Ungoverned." : "Not saved."}</strong> {blocked.message} {gen.result.provenance?.reason}</span>
           </div>
           {gen.result.table && <ResultTable columns={gen.result.table.columns} rows={gen.result.table.rows} />}
         </div>
