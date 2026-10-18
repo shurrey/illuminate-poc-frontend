@@ -1,11 +1,19 @@
 "use client";
 
+import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { useCardStore } from "@/context/CardStoreContext";
-import { X, ChevronUp, ChevronDown, Trash2, Eye, EyeOff, Plus, RotateCcw } from "lucide-react";
+import type { DashboardCard } from "@/data/dashboardCards";
+import { canShareCard, isPinnedShared, shareStatus } from "@/lib/sharing";
+import { ShareDialog } from "@/components/sharing/ShareDialog";
+import { SharedWithMe } from "@/components/sharing/SharedWithMe";
+import { X, ChevronUp, ChevronDown, Trash2, Eye, EyeOff, Plus, RotateCcw, Share2, MinusCircle } from "lucide-react";
 import Link from "next/link";
 
 export function CustomizePanel({ onClose }: { onClose: () => void }) {
-  const { cards, loading, error, clearError, toggleCard, moveCard, removeCard, resetToDefaults } = useCardStore();
+  const { cards, loading, error, clearError, toggleCard, moveCard, removeCard, resetToDefaults, reload } = useCardStore();
+  const { tenant } = useAuth();
+  const [sharing, setSharing] = useState<DashboardCard | null>(null);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -50,7 +58,12 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
               {/* Card info */}
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-gray-900 truncate">{card.label}</div>
-                <div className="text-xs text-gray-400 truncate">{card.description}</div>
+                <div className="text-xs text-gray-400 truncate">
+                  {isPinnedShared(card) ? `Shared by ${card.owner?.name ?? "a colleague"}` : card.description}
+                </div>
+                {shareStatus(card.shared, tenant?.name) && (
+                  <div className="text-[11px] text-[#0066FF] truncate">{shareStatus(card.shared, tenant?.name)}</div>
+                )}
               </div>
 
               {/* Reorder */}
@@ -71,8 +84,27 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
 
-              {/* Delete (user-created only) */}
-              {!card.isBuiltIn && (
+              {canShareCard(card) && (
+                <button
+                  onClick={() => setSharing(card)}
+                  disabled={loading}
+                  className="p-1 text-gray-400 hover:text-[#0066FF] hover:bg-blue-50 rounded transition-colors"
+                  title="Share card"
+                >
+                  <Share2 size={13} />
+                </button>
+              )}
+
+              {isPinnedShared(card) ? (
+                <button
+                  onClick={() => removeCard(card.id)}
+                  disabled={loading}
+                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                  title="Remove from my home"
+                >
+                  <MinusCircle size={13} />
+                </button>
+              ) : !card.isBuiltIn && (
                 <button
                   onClick={() => removeCard(card.id)}
                   disabled={loading}
@@ -84,6 +116,11 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
               )}
             </div>
           ))}
+
+          <div className="pt-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Shared with me</h3>
+            <SharedWithMe kind="card" />
+          </div>
         </div>
 
         {/* Footer actions */}
@@ -104,6 +141,10 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
+      {sharing && (
+        <ShareDialog kind="card" itemId={sharing.id} itemName={sharing.label}
+          onClose={() => setSharing(null)} onChanged={() => void reload()} />
+      )}
     </div>
   );
 }

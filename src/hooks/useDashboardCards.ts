@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useCardStore } from "@/context/CardStoreContext";
 import { type DashboardCard, formatCardValue, valueColumn } from "@/data/dashboardCards";
 import { querySemantic } from "@/services/semanticApi";
+import { runSharedCard } from "@/services/sharingApi";
+import { isPinnedShared } from "@/lib/sharing";
 import type { Provenance } from "@/types/semantic";
 
 export interface CardResult {
@@ -24,7 +26,8 @@ const PENDING: Loaded = { value: null, sql: null, provenance: null, loading: tru
 const keyOf = (card: DashboardCard) => `${card.id}:${JSON.stringify(card.contract)}`;
 
 /** Runs each enabled card's contract once per contract; failed cards can be retried. While the profile loads, the
- * built-in cards are returned as placeholders and nothing runs. */
+ * built-in cards are returned as placeholders and nothing runs. A pinned shared card runs the owner's live card by
+ * its share id, since the contract the user sees may have its values masked. */
 export function useDashboardCards(): CardResult[] {
   const { cards, enabledCards, loaded } = useCardStore();
   const [results, setResults] = useState<Record<string, Loaded>>({});
@@ -37,11 +40,11 @@ export function useDashboardCards(): CardResult[] {
       if (started.current.has(key)) continue;
       started.current.add(key);
       setResults((prev) => ({ ...prev, [key]: PENDING }));
-      querySemantic(card.contract)
+      (isPinnedShared(card) ? runSharedCard(card.id) : querySemantic(card.contract))
         .then((r) => {
           const column = valueColumn(card.contract);
           const raw = column ? r.rows[0]?.[column] : undefined;
-          setResults((prev) => ({ ...prev, [key]: { value: formatCardValue(raw, card.format), sql: r.sql, provenance: r.provenance, loading: false, error: null } }));
+          setResults((prev) => ({ ...prev, [key]: { value: formatCardValue(raw, card.format), sql: isPinnedShared(card) ? null : r.sql, provenance: r.provenance, loading: false, error: null } }));
         })
         .catch((e) => {
           started.current.delete(key);

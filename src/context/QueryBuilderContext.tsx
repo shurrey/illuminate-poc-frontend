@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useProfileStore } from "@/hooks/useProfileStore";
 import { ProfileStore } from "@/lib/profileStore";
 import * as api from "@/services/profileApi";
+import { keepShared } from "@/lib/sharing";
 
 interface QueryBuilderContextType {
   queries: SavedQuery[];
@@ -29,7 +30,8 @@ function createStore() {
   return new ProfileStore<SavedQuery[]>([], async () => (await api.getQueries()).queries, api.isConflict);
 }
 
-const replace = (queries: SavedQuery[], id: string, saved: SavedQuery) => queries.map((q) => (q.id === id ? saved : q));
+const replace = (queries: SavedQuery[], id: string, saved: SavedQuery) =>
+  queries.map((q) => (q.id === id ? keepShared(q, saved) : q));
 
 export function QueryBuilderProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();

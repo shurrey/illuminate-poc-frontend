@@ -28,8 +28,9 @@ export class ProfileApiError extends Error {
 
 export const isConflict = (e: unknown) => e instanceof ProfileApiError && e.status === 409;
 
-async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const resp = await authService.authedFetch(`${API_URL}/api/v1/me${path}`, {
+/** A request to `${API_URL}/api/v1${path}`; a failure rejects with ProfileApiError carrying the server's detail. */
+export async function apiCall<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const resp = await authService.authedFetch(`${API_URL}/api/v1${path}`, {
     ...init,
     headers: { "Content-Type": "application/json" },
   });
@@ -47,7 +48,9 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   throw new ProfileApiError(typeof detail === "string" ? detail : `Request failed (${resp.status})`, resp.status);
 }
 
-const json = (method: string, body?: unknown): RequestInit =>
+const call = <T>(path: string, init: RequestInit = {}) => apiCall<T>(`/me${path}`, init);
+
+export const json = (method: string, body?: unknown): RequestInit =>
   ({ method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 
 const cardBody = ({ label, description, longDescription, prompt, contract, format, reportLink }: DashboardCard) =>

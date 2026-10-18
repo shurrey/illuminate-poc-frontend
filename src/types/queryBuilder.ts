@@ -10,6 +10,8 @@ interface SavedQueryBase {
   createdAt: string;
   lastUsedAt: string | null;
   governance_hint?: GovernanceHint;
+  /** Present on the owner's own list. */
+  shared?: { tenant: boolean; count: number };
 }
 
 export interface GovernedSavedQuery extends SavedQueryBase {
