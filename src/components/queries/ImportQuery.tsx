@@ -8,7 +8,7 @@ import { useQueryBuilder } from "@/context/QueryBuilderContext";
 import { useSemanticGeneration } from "@/hooks/useSemanticGeneration";
 import { useAuth } from "@/context/AuthContext";
 import { LEARN_REFUSAL, referencesLearn } from "@/lib/license";
-import { conversionFullyGoverned, hintLabel, partsReferencedBy } from "@/lib/savedQuery";
+import { conversionFullyGoverned, hintLabel, partsReferencedBy, sqlHint as sqlHintOf } from "@/lib/savedQuery";
 import type { SavedQuery } from "@/types/queryBuilder";
 import { SavedNotice } from "./SavedNotice";
 
@@ -34,7 +34,7 @@ export function ImportQuery({ onViewSaved }: { onViewSaved?: () => void }) {
   // The server makes the Core/LEARN refusal on save, so LEARN SQL can still be offered for saving as SQL.
   const offerSql = !!sql.trim() && !gen.isGenerating && (learnRefused || (converted && !conversionFullyGoverned(contract, gen.answer ?? "")));
   const parts = partsReferencedBy(sql, gen.result.governedParts);
-  const sqlHint = Object.keys(parts).length ? "partial" : "ungoverned";
+  const sqlHint = sqlHintOf(parts);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   conversionFullyGoverned, hintLabel, hintOf, partsReferencedBy, queryRequestBody, savedQueryFromArtifact,
-  sqlRunRequest, unmappedItems,
+  sqlHint, sqlRunRequest, unmappedItems,
 } from "./savedQuery";
 import type { GovernedSavedQuery, SqlSavedQuery } from "@/types/queryBuilder";
 import type { Artifact } from "@/types/chat";
@@ -51,6 +51,16 @@ describe("hintOf", () => {
   });
   it("never reads an unknown server hint as governed", () => {
     expect(hintOf({ ...governed, governance_hint: "bogus" as never })).toBe("ungoverned");
+  });  it("never reads an SQL query as governed, whatever the server says", () => {
+    expect(hintOf({ ...sql, governance_hint: "governed" })).toBe("partial");
+    expect(hintOf({ ...sql, governed_parts: {}, governance_hint: "governed" })).toBe("partial");
+  });
+});
+
+describe("sqlHint", () => {
+  it("is partial with parts and ungoverned without, never governed", () => {
+    expect(sqlHint({ a: { metrics: ["m"] } })).toBe("partial");
+    expect(sqlHint({})).toBe("ungoverned");
   });
 });
 
