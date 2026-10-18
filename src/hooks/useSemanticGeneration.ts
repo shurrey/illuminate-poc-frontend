@@ -12,9 +12,11 @@ export interface GeneratedQuery {
   provenance: Provenance | null;
   title: string | null;
   table: TableData | null;
+  /** Spliced SQL results: the contracts the SQL read from. */
+  governedParts: Record<string, QueryContract>;
 }
 
-const EMPTY: GeneratedQuery = { contract: null, sql: null, provenance: null, title: null, table: null };
+const EMPTY: GeneratedQuery = { contract: null, sql: null, provenance: null, title: null, table: null, governedParts: {} };
 
 /** The last query the agent ran, taken from its table artifact. */
 export function queryFromArtifacts(artifacts: Artifact[] = []): GeneratedQuery {
@@ -27,6 +29,7 @@ export function queryFromArtifacts(artifacts: Artifact[] = []): GeneratedQuery {
     provenance: table.provenance ?? null,
     title: table.title ?? null,
     table: table.data as TableData,
+    governedParts: table.governed_parts ?? {},
   };
 }
 

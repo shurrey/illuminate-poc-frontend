@@ -3,14 +3,16 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Message, Artifact, ThinkingStep, ChartConfig } from "@/types/chat";
+import type { Message, Artifact, ThinkingStep, ChartConfig, TableData } from "@/types/chat";
 import { ChartRenderer } from "./ChartRenderer";
-import { DataTable } from "./DataTable";
+import { ProvenanceBar, ResultView } from "./ResultView";
 import { ExportButton } from "./ExportButton";
 import { SqlModal } from "./SqlModal";
 import Link from "next/link";
-import { Copy, Check, Brain, ChevronDown, Database, Wrench, AlertCircle, AlertTriangle, LayoutDashboard, ShieldCheck, ShieldHalf } from "lucide-react";
-import { governanceOf } from "@/lib/provenance";
+import { Copy, Check, Brain, ChevronDown, Database, Wrench, AlertCircle, Save } from "lucide-react";
+import { useQueryBuilder } from "@/context/QueryBuilderContext";
+import { savedQueryFromArtifact } from "@/lib/savedQuery";
+import { SaveQueryDialog } from "@/components/queries/SaveQueryDialog";
 
 function extractText(children: React.ReactNode): string {
   if (typeof children === "string") return children;
@@ -74,42 +76,32 @@ function InlineThinking({ steps }: { steps: ThinkingStep[] }) {
   );
 }
 
-/** Where a result came from: the governed definitions behind it, or why it is ungoverned. */
-function ProvenanceBar({ artifact }: { artifact: Artifact }) {
-  const p = artifact.provenance;
-  if (!p) return null;
-  const level = governanceOf(p);
-  if (level === "none") {
-    return (
-      <div className="flex items-start gap-1.5 px-3 py-1.5 bg-amber-50 border-t border-amber-100 text-[11px] text-amber-800">
-        <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
-        <span>
-          <strong>Ungoverned</strong>{p.reason ? `: ${p.reason}` : ""}
-          {p.rows === "modified" && ((p.metrics?.length ?? 0) + (p.measures?.length ?? 0)) > 0 && ". Rows come from outside the governed definitions"}
-        </span>
-      </div>
-    );
-  }
-  const refs = [...(p.metrics ?? []), ...(p.measures ?? [])];
-  const partial = level === "partial";
-  const fromSql = p.governance !== undefined;
+/** "Save query" for a table result: its contract when governed, else its SQL and governed parts. */
+function SaveResult({ artifact }: { artifact: Artifact }) {
+  const { trySaveQuery } = useQueryBuilder();
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<{ saved: string } | { error: string } | null>(null);
+  const draft = savedQueryFromArtifact(artifact, { id: "", now: "" });
+  if (!draft) return null;
+
+  const save = async (name: string, description: string) => {
+    setOpen(false);
+    setStatus(null);
+    const now = new Date().toISOString();
+    const error = await trySaveQuery({ ...draft, id: crypto.randomUUID(), name, description, createdAt: now });
+    setStatus(error ? { error } : { saved: name });
+  };
+
   return (
-    <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 bg-gray-50 border-t border-gray-100 text-[11px]">
-      {partial ? <ShieldHalf size={12} className="text-amber-600" /> : <ShieldCheck size={12} className="text-emerald-600" />}
-      {fromSql && <strong className={partial ? "text-amber-800" : "text-emerald-700"}>{partial ? "Partly governed" : "Governed"}</strong>}
-      {refs.map((r) => <span key={r} className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono">{r}</span>)}
-      {(p.overlays ?? []).map((o) => (
-        <span key={o} title="Your institution's override of the canonical definition"
-          className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 font-mono">your override {o}</span>
-      ))}
-      {fromSql && p.rows === "modified" && <span className="text-gray-500">Rows come from outside the governed definitions</span>}
-      {partial && p.reason && <span className="text-gray-500">{p.reason}</span>}
-      {artifact.query && (
-        <Link href={`/cards/new?contract=${encodeURIComponent(JSON.stringify(artifact.query))}&name=${encodeURIComponent(artifact.title ?? "")}`}
-          className="ml-auto flex items-center gap-1 text-[#0066FF] hover:underline">
-          <LayoutDashboard size={12} /> Pin as card
-        </Link>
+    <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 border-b border-gray-100 text-xs">
+      {status && "saved" in status && (
+        <span role="status" className="text-emerald-700">Saved <strong>{status.saved}</strong> to <Link href="/queries" className="underline">My Queries</Link>.</span>
       )}
+      {status && "error" in status && <span role="alert" className="text-red-700">{status.error}</span>}
+      <button onClick={() => setOpen(true)} className="ml-auto flex items-center gap-1 text-[#0066FF] hover:underline">
+        <Save size={12} /> Save query
+      </button>
+      {open && <SaveQueryDialog initialName={draft.name} initialDescription="" onSave={save} onClose={() => setOpen(false)} />}
     </div>
   );
 }
@@ -118,18 +110,15 @@ function ArtifactRenderer({ artifact }: { artifact: Artifact }) {
   switch (artifact.type) {
     case "table":
       return (
-        <div className="bg-white rounded-lg overflow-hidden shadow-sm">
-          {artifact.title && <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 font-medium text-sm text-gray-700">{artifact.title}</div>}
-          <DataTable data={artifact.data as { rows: Record<string, unknown>[]; columns: string[] }} provenance={artifact.provenance} />
-          <ProvenanceBar artifact={artifact} />
-        </div>
+        <ResultView title={artifact.title} data={artifact.data as TableData} provenance={artifact.provenance}
+          query={artifact.query} toolbar={<SaveResult artifact={artifact} />} />
       );
     case "chart":
       return (
         <div className="bg-white rounded-lg overflow-hidden shadow-sm">
           {artifact.title && <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 font-medium text-sm text-gray-700">{artifact.title}</div>}
           <div className="p-3"><ChartRenderer config={artifact.data as ChartConfig} /></div>
-          <ProvenanceBar artifact={artifact} />
+          <ProvenanceBar provenance={artifact.provenance} query={artifact.query} title={artifact.title} />
         </div>
       );
     case "text":

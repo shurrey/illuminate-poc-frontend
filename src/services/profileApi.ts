@@ -4,6 +4,7 @@ import { authService } from "./authService";
 import type { DashboardCard } from "@/data/dashboardCards";
 import type { SavedQuery } from "@/types/queryBuilder";
 import type { LocalProfile } from "@/lib/profileImport";
+import { queryRequestBody } from "@/lib/savedQuery";
 
 const API_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || "http://localhost:8000";
 
@@ -52,8 +53,6 @@ const json = (method: string, body?: unknown): RequestInit =>
 const cardBody = ({ label, description, longDescription, prompt, contract, format, reportLink }: DashboardCard) =>
   ({ label, description, longDescription, prompt, contract, format, ...(reportLink ? { reportLink } : {}) });
 
-const queryBody = ({ name, prompt, description, contract }: SavedQuery) => ({ name, prompt, description, contract });
-
 const id = (value: string) => encodeURIComponent(value);
 
 export const getCards = () => call<CardsView>("/cards");
@@ -66,8 +65,8 @@ export const deleteCard = (cardId: string) => call<CardsView>(`/cards/${id(cardI
 export const resetCards = () => call<CardsView>("/cards/reset", json("POST"));
 
 export const getQueries = () => call<{ queries: SavedQuery[] }>("/queries");
-export const createQuery = (q: SavedQuery) => call<SavedQuery>("/queries", json("POST", queryBody(q)));
-export const updateQuery = (q: SavedQuery) => call<SavedQuery>(`/queries/${id(q.id)}`, json("PUT", queryBody(q)));
+export const createQuery = (q: SavedQuery) => call<SavedQuery>("/queries", json("POST", queryRequestBody(q)));
+export const updateQuery = (q: SavedQuery) => call<SavedQuery>(`/queries/${id(q.id)}`, json("PUT", queryRequestBody(q)));
 export const markQueryUsed = (queryId: string) => call<SavedQuery>(`/queries/${id(queryId)}/used`, json("POST"));
 export const deleteQuery = (queryId: string) => call<{ deleted: string }>(`/queries/${id(queryId)}`, json("DELETE"));
 

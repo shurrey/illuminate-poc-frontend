@@ -16,6 +16,8 @@ interface QueryBuilderContextType {
   reload: () => Promise<boolean>;
   /** Creates the query, or updates it when its id is already saved; resolves false when the server refused it. */
   saveQuery: (q: SavedQuery) => Promise<boolean>;
+  /** saveQuery for callers that show the refusal themselves: resolves null once saved, else the server's message. */
+  trySaveQuery: (q: SavedQuery) => Promise<string | null>;
   updateQuery: (id: string, updates: Partial<SavedQuery>) => Promise<boolean>;
   deleteQuery: (id: string) => Promise<boolean>;
   getQuery: (id: string) => SavedQuery | undefined;
@@ -34,7 +36,7 @@ export function QueryBuilderProvider({ children }: { children: React.ReactNode }
   const [store, { value: queries, loading, loaded, error }] = useProfileStore(createStore, user?.id ?? null);
 
   const updateQuery = useCallback((id: string, updates: Partial<SavedQuery>) => store.mutate({
-    apply: (s) => s.map((q) => (q.id === id ? { ...q, ...updates } : q)),
+    apply: (s) => s.map((q) => (q.id === id ? { ...q, ...updates } as SavedQuery : q)),
     send: (next) => {
       const query = next.find((q) => q.id === id);
       if (!query) throw new Error("Query not found");
@@ -52,6 +54,13 @@ export function QueryBuilderProvider({ children }: { children: React.ReactNode }
     });
   }, [store, updateQuery]);
 
+  const trySaveQuery = useCallback(async (q: SavedQuery) => {
+    if (await saveQuery(q)) return null;
+    const message = store.snapshot().error ?? "The query could not be saved";
+    store.clearError();
+    return message;
+  }, [store, saveQuery]);
+
   const deleteQuery = useCallback((id: string) => store.mutate({
     apply: (s) => s.filter((q) => q.id !== id),
     send: () => api.deleteQuery(id),
@@ -64,7 +73,7 @@ export function QueryBuilderProvider({ children }: { children: React.ReactNode }
 
   return (
     <QueryBuilderContext.Provider
-      value={{ queries, loading, loaded, error, clearError, reload, saveQuery, updateQuery, deleteQuery, getQuery }}
+      value={{ queries, loading, loaded, error, clearError, reload, saveQuery, trySaveQuery, updateQuery, deleteQuery, getQuery }}
     >
       {children}
     </QueryBuilderContext.Provider>
