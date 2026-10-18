@@ -67,3 +67,14 @@ export const revertOverlay = (target: string, version: number, expectedVersion: 
   call<{ overlay: Overlay }>(`${path(target)}/revert`, {
     method: "POST", body: JSON.stringify({ version, expected_version: expectedVersion }),
   });
+
+export type McpSetup =
+  | { deployed: false }
+  | { deployed: true; url: string; snippets: { claude_desktop: string; claude_code: string; vscode: string } };
+
+export const getMcpSetting = () => call<{ enabled: boolean }>("/settings/mcp");
+
+export const setMcpSetting = (enabled: boolean) =>
+  call<{ enabled: boolean }>("/settings/mcp", { method: "PUT", body: JSON.stringify({ enabled }) });
+
+export const getMcpSetup = () => call<McpSetup>("/mcp/setup");

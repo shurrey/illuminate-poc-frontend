@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Database,
   Layers,
+  Bot,
   HelpCircle,
   Settings,
   ChevronDown,
@@ -46,6 +47,7 @@ const navSections: NavSection[] = [
   },
   { label: "Data Dictionary", href: "/developer", icon: BookOpen },
   { label: "Metric Definitions", href: "/admin/definitions", icon: Layers, adminOnly: true },
+  { label: "AI clients (MCP)", href: "/admin/mcp", icon: Bot, adminOnly: true },
   { label: "Settings", href: "/settings", icon: Settings },
   {
     label: "Need help?",
