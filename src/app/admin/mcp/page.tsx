@@ -88,11 +88,10 @@ function McpSettings() {
           </section>
           {orderedSnippets(setup.snippets).map((s) => (
             <section key={s.key}>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-gray-900">{s.label}</h2>
                 <CopyButton text={s.copyText} label={s.label} />
               </div>
-              <p className="text-xs text-gray-500 mb-2">{s.hint}</p>
               <pre className="text-xs bg-gray-50 border border-gray-200 rounded p-3 overflow-x-auto whitespace-pre-wrap break-all">{s.text}</pre>
             </section>
           ))}

@@ -13,8 +13,4 @@ describe("orderedSnippets", () => {
     expect(desktop.text).toBe("https://x/mcp");
     expect(desktop.copyText).toBe("https://x/mcp");
   });
-
-  it("explains where Claude Desktop's URL goes", () => {
-    expect(orderedSnippets(snippets)[0].hint).toMatch(/connector/i);
-  });
 });
