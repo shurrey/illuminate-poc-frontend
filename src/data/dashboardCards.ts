@@ -15,6 +15,10 @@ export interface DashboardCard {
   reportLink?: string;
   isBuiltIn?: boolean;
   enabled?: boolean;
+  /** The owner's share summary on their own card; true on a card shared with the user and pinned to their home. */
+  shared?: true | { tenant: boolean; count: number };
+  /** Only on a pinned shared card. */
+  owner?: { name: string };
 }
 
 /** The result column holding a contract's first metric or measure. */
