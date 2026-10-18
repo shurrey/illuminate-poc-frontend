@@ -17,7 +17,7 @@ function headers(extra: Record<string, string> = {}): Record<string, string> {
 }
 
 /** FastAPI errors arrive as {detail: string}, {detail: {error, sql}} or {detail: [validation errors]}. */
-async function fail(resp: Response): Promise<never> {
+export async function fail(resp: Response): Promise<never> {
   let message = `Request failed (${resp.status})`;
   let sql: string | undefined;
   try {

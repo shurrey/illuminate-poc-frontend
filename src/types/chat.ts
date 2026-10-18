@@ -26,6 +26,8 @@ export interface Artifact {
   data: ChartConfig | TableData | string;
   title?: string;
   description?: string;
+  /** Which tool produced it: "semantic" (query_semantic) or "sql" (execute_sql). */
+  kind?: "semantic" | "sql";
   /** Set on artifacts from the semantic tools: the contract that produced them (governed only). */
   query?: QueryContract;
   sql?: string;

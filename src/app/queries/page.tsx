@@ -4,10 +4,11 @@ import { useState } from "react";
 import { MyQueries } from "@/components/queries/MyQueries";
 import { NewQuery } from "@/components/queries/NewQuery";
 import { ImportQuery } from "@/components/queries/ImportQuery";
-import type { SavedQuery } from "@/types/queryBuilder";
-import { Database, Plus, Upload, FolderOpen } from "lucide-react";
+import { SqlQuery } from "@/components/queries/SqlQuery";
+import { isSqlQuery, type SavedQuery } from "@/types/queryBuilder";
+import { Code2, Database, Plus, Upload, FolderOpen } from "lucide-react";
 
-type Tab = "my-queries" | "new-query" | "import";
+type Tab = "my-queries" | "new-query" | "sql" | "import";
 
 export default function QueriesPage() {
   const [activeTab, setActiveTab] = useState<Tab>("new-query");
@@ -15,11 +16,14 @@ export default function QueriesPage() {
 
   const handleLoadQuery = (query: SavedQuery) => {
     setLoadedQuery(query);
-    setActiveTab("new-query");
+    setActiveTab(isSqlQuery(query) ? "sql" : "new-query");
   };
+  const governed = loadedQuery && !isSqlQuery(loadedQuery) ? loadedQuery : null;
+  const sql = loadedQuery && isSqlQuery(loadedQuery) ? loadedQuery : undefined;
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "new-query", label: "New Query", icon: Plus },
+    { id: "sql", label: "SQL", icon: Code2 },
     { id: "my-queries", label: "My Queries", icon: FolderOpen },
     { id: "import", label: "Import", icon: Upload },
   ];
@@ -33,7 +37,7 @@ export default function QueriesPage() {
             <Database size={20} className="text-[#0066FF]" />
             <h1 className="text-2xl font-bold text-gray-900">Query Builder</h1>
           </div>
-          <p className="text-gray-500">Build, run, and save governed queries over the semantic layer</p>
+          <p className="text-gray-500">Build, run, and save governed queries over the semantic layer, or write your own SQL</p>
         </div>
       </div>
 
@@ -42,7 +46,7 @@ export default function QueriesPage() {
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => { setActiveTab(id); if (id !== "new-query") setLoadedQuery(null); }}
+            onClick={() => { if (id !== activeTab) setLoadedQuery(null); setActiveTab(id); }}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === id
                 ? "bg-white text-[#0066FF] shadow-sm"
@@ -58,13 +62,17 @@ export default function QueriesPage() {
       {/* Content */}
       {activeTab === "new-query" && (
         <NewQuery
-          key={loadedQuery?.id || "new"}
-          initialContract={loadedQuery?.contract}
-          initialPrompt={loadedQuery?.prompt}
-          initialName={loadedQuery?.name}
-          initialDescription={loadedQuery?.description}
+          key={governed?.id || "new"}
+          initialContract={governed?.contract}
+          initialPrompt={governed?.prompt}
+          initialName={governed?.name}
+          initialDescription={governed?.description}
           onViewSaved={() => { setLoadedQuery(null); setActiveTab("my-queries"); }}
         />
+      )}
+      {activeTab === "sql" && (
+        <SqlQuery key={sql?.id || "new"} initial={sql}
+          onViewSaved={() => { setLoadedQuery(null); setActiveTab("my-queries"); }} />
       )}
       {activeTab === "my-queries" && <MyQueries onLoadQuery={handleLoadQuery} />}
       {activeTab === "import" && <ImportQuery onViewSaved={() => setActiveTab("my-queries")} />}

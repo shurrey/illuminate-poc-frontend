@@ -2,27 +2,51 @@
 
 import { useState } from "react";
 import { useQueryBuilder } from "@/context/QueryBuilderContext";
-import type { SavedQuery } from "@/types/queryBuilder";
-import { Search, Play, Trash2, Copy, Clock, FileCode } from "lucide-react";
+import { isSqlQuery, type GovernanceHint, type SavedQuery } from "@/types/queryBuilder";
+import { hintLabel, hintOf } from "@/lib/savedQuery";
+import { runSavedQuery, type SqlResult } from "@/services/sqlApi";
+import { ResultView } from "@/components/chat/ResultView";
+import { Search, Play, Trash2, Copy, Clock, FileCode, FolderOpen, Loader2, X } from "lucide-react";
 
 interface MyQueriesProps {
   onLoadQuery: (query: SavedQuery) => void;
 }
 
+type Run = { running: true } | { result: SqlResult } | { error: string };
+
+const HINT_STYLES: Record<GovernanceHint, string> = {
+  governed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  partial: "bg-amber-50 text-amber-800 border-amber-200",
+  ungoverned: "bg-gray-100 text-gray-600 border-gray-200",
+};
+
+const searchText = (q: SavedQuery) => [q.name, q.description, isSqlQuery(q) ? q.sql : q.prompt].join("\n").toLowerCase();
+
 export function MyQueries({ onLoadQuery }: MyQueriesProps) {
   const { queries, loading, loaded, deleteQuery } = useQueryBuilder();
   const [search, setSearch] = useState("");
+  const [runs, setRuns] = useState<Record<string, Run>>({});
 
-  const filtered = queries.filter(
-    (q) =>
-      !search ||
-      q.name.toLowerCase().includes(search.toLowerCase()) ||
-      q.description.toLowerCase().includes(search.toLowerCase()) ||
-      q.prompt.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = queries.filter((q) => !search || searchText(q).includes(search.toLowerCase()));
 
   const handleCopy = async (q: SavedQuery) => {
-    await navigator.clipboard.writeText(JSON.stringify(q.contract, null, 2));
+    await navigator.clipboard.writeText(isSqlQuery(q) ? q.sql : JSON.stringify(q.contract, null, 2));
+  };
+
+  const setRun = (id: string, run: Run | null) => setRuns((r) => {
+    const next = { ...r };
+    if (run) next[id] = run;
+    else delete next[id];
+    return next;
+  });
+
+  const handleRun = async (q: SavedQuery) => {
+    setRun(q.id, { running: true });
+    try {
+      setRun(q.id, { result: await runSavedQuery(q.id) });
+    } catch (e) {
+      setRun(q.id, { error: e instanceof Error ? e.message : "The query failed" });
+    }
   };
 
   const formatDate = (iso: string) => {
@@ -40,7 +64,7 @@ export function MyQueries({ onLoadQuery }: MyQueriesProps) {
         <FileCode size={40} className="text-gray-300 mb-4" />
         <h3 className="text-lg font-semibold text-gray-900 mb-2">No saved queries yet</h3>
         <p className="text-sm text-gray-500 max-w-md">
-          Build a query from the catalog, ask a question, or import an existing SQL query to get started.
+          Build a query from the catalog, ask a question, write SQL, or import an existing SQL query to get started.
         </p>
       </div>
     );
@@ -62,46 +86,78 @@ export function MyQueries({ onLoadQuery }: MyQueriesProps) {
 
       {/* Query list */}
       <div className="space-y-2">
-        {filtered.map((q) => (
-          <div
-            key={q.id}
-            className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0066FF]/30 hover:shadow-sm transition-all group"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-semibold text-gray-900 truncate">{q.name}</h4>
-                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{q.description}</p>
-                <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
-                  <span className="flex items-center gap-1"><Clock size={11} />{formatDate(q.lastUsedAt || q.createdAt)}</span>
-                  {q.prompt && <span className="truncate max-w-[200px]">Prompt: {q.prompt}</span>}
+        {filtered.map((q) => {
+          const hint = hintOf(q);
+          const run = runs[q.id];
+          return (
+            <div
+              key={q.id}
+              className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0066FF]/30 hover:shadow-sm transition-all group"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-gray-900 truncate">{q.name}</h4>
+                    <span title="The label its last run would carry; each run is labelled from what actually ran"
+                      className={`flex-shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-medium ${HINT_STYLES[hint]}`}>
+                      {isSqlQuery(q) ? `SQL · ${hintLabel(hint)}` : hintLabel(hint)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{q.description}</p>
+                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                    <span className="flex items-center gap-1"><Clock size={11} />{formatDate(q.lastUsedAt || q.createdAt)}</span>
+                    {isSqlQuery(q)
+                      ? <span className="truncate max-w-[300px] font-mono">{q.sql}</span>
+                      : q.prompt && <span className="truncate max-w-[200px]">Prompt: {q.prompt}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 ml-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleRun(q)}
+                    disabled={!!run && "running" in run}
+                    className="p-1.5 text-gray-400 hover:text-[#0066FF] hover:bg-gray-50 rounded transition-colors"
+                    title="Run"
+                  >
+                    {run && "running" in run ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                  </button>
+                  <button
+                    onClick={() => onLoadQuery(q)}
+                    className="p-1.5 text-gray-400 hover:text-[#0066FF] hover:bg-gray-50 rounded transition-colors"
+                    title={isSqlQuery(q) ? "Open in the SQL tab" : "Open in workbench"}
+                  >
+                    <FolderOpen size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleCopy(q)}
+                    className="p-1.5 text-gray-400 hover:text-[#0066FF] hover:bg-gray-50 rounded transition-colors"
+                    title={isSqlQuery(q) ? "Copy SQL" : "Copy query contract"}
+                  >
+                    <Copy size={14} />
+                  </button>
+                  <button
+                    onClick={() => deleteQuery(q.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-1 ml-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => onLoadQuery(q)}
-                  className="p-1.5 text-gray-400 hover:text-[#0066FF] hover:bg-gray-50 rounded transition-colors"
-                  title="Open in workbench"
-                >
-                  <Play size={14} />
-                </button>
-                <button
-                  onClick={() => handleCopy(q)}
-                  className="p-1.5 text-gray-400 hover:text-[#0066FF] hover:bg-gray-50 rounded transition-colors"
-                  title="Copy query contract"
-                >
-                  <Copy size={14} />
-                </button>
-                <button
-                  onClick={() => deleteQuery(q.id)}
-                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
+              {run && !("running" in run) && (
+                <div className="mt-3 space-y-1">
+                  <div className="flex justify-end">
+                    <button onClick={() => setRun(q.id, null)} aria-label="Close result" className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                  </div>
+                  {"error" in run
+                    ? <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{run.error}</div>
+                    : <ResultView title={`${run.result.rows.length} rows`} data={{ columns: run.result.columns, rows: run.result.rows }}
+                        provenance={run.result.provenance} truncated={run.result.truncated}
+                        query={isSqlQuery(q) ? undefined : q.contract} />}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
