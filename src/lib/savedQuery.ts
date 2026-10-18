@@ -24,11 +24,16 @@ export function sqlRunRequest(sql: string, parts: GovernedParts, reason?: string
 
 const HINTS: GovernanceHint[] = ["governed", "partial", "ungoverned"];
 
-/** An unrecognised server hint reads as ungoverned, so a label never claims more than it knows. */
+/** An SQL query's hint from its parts; never "governed", since its rows can be modified or cut. */
+export const sqlHint = (parts: GovernedParts | undefined): GovernanceHint =>
+  Object.keys(parts ?? {}).length ? "partial" : "ungoverned";
+
+/** An unrecognised server hint reads as ungoverned, and an SQL query is at most partial. */
 export function hintOf(q: SavedQuery): GovernanceHint {
-  if (q.governance_hint !== undefined) return HINTS.includes(q.governance_hint) ? q.governance_hint : "ungoverned";
-  if (!isSqlQuery(q)) return "governed";
-  return Object.keys(q.governed_parts ?? {}).length ? "partial" : "ungoverned";
+  const hint = q.governance_hint === undefined ? undefined : HINTS.includes(q.governance_hint) ? q.governance_hint : "ungoverned";
+  if (!isSqlQuery(q)) return hint ?? "governed";
+  if (hint === undefined) return sqlHint(q.governed_parts);
+  return hint === "governed" ? "partial" : hint;
 }
 
 const HINT_LABELS: Record<GovernanceHint, string> = {
