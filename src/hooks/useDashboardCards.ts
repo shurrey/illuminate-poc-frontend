@@ -44,7 +44,7 @@ export function useDashboardCards(): CardResult[] {
         .then((r) => {
           const column = valueColumn(card.contract);
           const raw = column ? r.rows[0]?.[column] : undefined;
-          setResults((prev) => ({ ...prev, [key]: { value: formatCardValue(raw, card.format), sql: r.sql, provenance: r.provenance, loading: false, error: null } }));
+          setResults((prev) => ({ ...prev, [key]: { value: formatCardValue(raw, card.format), sql: isPinnedShared(card) ? null : r.sql, provenance: r.provenance, loading: false, error: null } }));
         })
         .catch((e) => {
           started.current.delete(key);

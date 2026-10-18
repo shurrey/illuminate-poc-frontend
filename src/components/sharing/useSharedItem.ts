@@ -67,7 +67,7 @@ export function useSharedActions(shareId: string, kind: ItemKind, format?: CardF
         const r = await runSharedCard(shareId);
         // A card's contract is one metric or measure with no dimensions, so the value is the only column.
         const column = r.columns[0];
-        result = { ...r, value: formatCardValue(column === undefined ? undefined : r.rows[0]?.[column], format ?? "number") };
+        result = { columns: r.columns, rows: r.rows, provenance: r.provenance, value: formatCardValue(column === undefined ? undefined : r.rows[0]?.[column], format ?? "number") };
       } else {
         result = await runSharedQuery(shareId);
       }

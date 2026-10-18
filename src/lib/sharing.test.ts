@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addRecipient, canShareCard, draftOf, hiddenForRole, isDirty, isPinnedShared, isShared, ownersNoteLine, pickable,
   pinnedShareIds, recipientDiff, removeRecipient, searchTerm, setTenant, shareRequestBody, shareStatus, sharedEntries,
-  toSharedEntry,
+  keepShared, toSharedEntry,
 } from "./sharing";
 
 const ann = { sub: "s-ann", name: "Ann" };
@@ -180,5 +180,24 @@ describe("pinned shared cards", () => {
     expect(canShareCard({ id: "c_1", isBuiltIn: false })).toBe(true);
     expect(canShareCard({ id: "active", isBuiltIn: true })).toBe(false);
     expect(canShareCard({ id: "sh_a", isBuiltIn: false, shared: true })).toBe(false);
+  });
+});
+
+type Item = { id: string; name?: string; shared?: { tenant: boolean; count: number } };
+
+describe("keepShared", () => {
+  it("carries the previous share summary onto an update response that lacks one", () => {
+    const saved = keepShared<Item>({ id: "q_1", shared: { tenant: true, count: 0 } }, { id: "q_1", name: "New" });
+    expect(saved).toEqual({ id: "q_1", name: "New", shared: { tenant: true, count: 0 } });
+  });
+
+  it("keeps a summary the response does carry", () => {
+    expect(keepShared<Item>({ id: "q_1", shared: { tenant: true, count: 0 } }, { id: "q_1", shared: { tenant: false, count: 2 } }))
+      .toEqual({ id: "q_1", shared: { tenant: false, count: 2 } });
+  });
+
+  it("adds nothing when there was no previous summary", () => {
+    expect(keepShared<Item>(undefined, { id: "q_1" })).toEqual({ id: "q_1" });
+    expect(keepShared<Item>({ id: "q_1" }, { id: "q_1" })).toEqual({ id: "q_1" });
   });
 });

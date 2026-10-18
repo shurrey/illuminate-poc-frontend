@@ -129,3 +129,9 @@ export const isPinnedShared = (card: CardLike) => card.shared === true && card.i
 export const pinnedShareIds = (cards: CardLike[]) => new Set(cards.filter(isPinnedShared).map((c) => c.id));
 
 export const canShareCard = (card: CardLike) => !card.isBuiltIn && !isPinnedShared(card);
+
+/** An update response replacing a listed item; the response carries no share summary, so the previous one is kept. */
+export function keepShared<T extends { shared?: unknown }>(prev: Partial<T> | undefined, saved: T): T {
+  if (saved.shared !== undefined || prev?.shared === undefined) return saved;
+  return { ...saved, shared: prev.shared };
+}

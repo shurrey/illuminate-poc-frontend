@@ -58,13 +58,15 @@ export function LiveKPICard({ result }: { result: CardResult }) {
           {/* Bottom action icons */}
           {!loading && !error && (
             <div className="flex items-center gap-1 mt-3 pt-2 border-t border-gray-100">
-              <button
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowSql(true); }}
-                className="text-gray-300 hover:text-[#0066FF] transition-colors p-1.5 rounded hover:bg-gray-50"
-                title="View SQL"
-              >
-                <Code2 size={14} />
-              </button>
+              {!sharedBy && sql && (
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowSql(true); }}
+                  className="text-gray-300 hover:text-[#0066FF] transition-colors p-1.5 rounded hover:bg-gray-50"
+                  title="View SQL"
+                >
+                  <Code2 size={14} />
+                </button>
+              )}
               <button
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowInfo(true); }}
                 className="text-gray-300 hover:text-[#0066FF] transition-colors p-1.5 rounded hover:bg-gray-50"
@@ -86,7 +88,7 @@ export function LiveKPICard({ result }: { result: CardResult }) {
         </div>
       </Link>
 
-      {showSql && sql && <SqlViewModal sql={sql} title={card.label} onClose={() => setShowSql(false)} />}
+      {showSql && sql && !sharedBy && <SqlViewModal sql={sql} title={card.label} onClose={() => setShowSql(false)} />}
       {showInfo && (
         <InfoModal title={card.label} intro={card.longDescription} onClose={() => setShowInfo(false)}>
           <ContractCalculation queries={[{ contract: card.contract, provenance }]} />

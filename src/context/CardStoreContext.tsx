@@ -7,6 +7,7 @@ import { useProfileStore } from "@/hooks/useProfileStore";
 import { ProfileStore, createThenReload, layoutOf, moved, toggled } from "@/lib/profileStore";
 import * as api from "@/services/profileApi";
 import { pinSharedCard as pinShared } from "@/services/sharingApi";
+import { keepShared } from "@/lib/sharing";
 
 interface CardStoreContextType {
   cards: DashboardCard[];
@@ -65,7 +66,7 @@ export function CardStoreProvider({ children }: { children: React.ReactNode }) {
       if (!card) throw new Error("Card not found");
       return api.updateCard(card);
     },
-    merge: (base, saved) => ({ ...base, cards: base.cards.map((c) => (c.id === id ? { ...saved, enabled: c.enabled } : c)) }),
+    merge: (base, saved) => ({ ...base, cards: base.cards.map((c) => (c.id === id ? { ...keepShared(c, saved), enabled: c.enabled } : c)) }),
   }), [store]);
 
   const removeCard = useCallback((id: string) => store.mutate({
