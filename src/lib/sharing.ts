@@ -117,7 +117,7 @@ export const ownersNoteLine = (note: string | null | undefined) => {
 };
 
 /** True when the server masked values in this view (`…` stands in for each one) or withheld the SQL entirely. */
-export function hiddenForRole(detail: { redacted?: boolean; sql?: string | null; [k: string]: unknown }): boolean {
+export function hiddenForRole(detail: { redacted?: boolean; sql?: string | null }): boolean {
   if (detail.redacted !== true) return false;
   return detail.sql === null || JSON.stringify(detail).includes("…");
 }

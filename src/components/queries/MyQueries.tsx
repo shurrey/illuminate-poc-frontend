@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { useQueryBuilder } from "@/context/QueryBuilderContext";
-import { isSqlQuery, type GovernanceHint, type SavedQuery } from "@/types/queryBuilder";
-import { hintLabel, hintOf } from "@/lib/savedQuery";
+import { isSqlQuery, type SavedQuery } from "@/types/queryBuilder";
+import { hintOf } from "@/lib/savedQuery";
+import { shareStatus } from "@/lib/sharing";
 import { runSavedQuery, type SqlResult } from "@/services/sqlApi";
 import { ResultView } from "@/components/chat/ResultView";
-import { Search, Play, Trash2, Copy, Clock, FileCode, FolderOpen, Loader2, X } from "lucide-react";
+import { HintChip } from "@/components/sharing/HintChip";
+import { ShareDialog } from "@/components/sharing/ShareDialog";
+import { Search, Play, Trash2, Copy, Clock, FileCode, FolderOpen, Loader2, Share2, Users, X } from "lucide-react";
 
 interface MyQueriesProps {
   onLoadQuery: (query: SavedQuery) => void;
@@ -14,17 +18,13 @@ interface MyQueriesProps {
 
 type Run = { running: true } | { result: SqlResult } | { error: string };
 
-const HINT_STYLES: Record<GovernanceHint, string> = {
-  governed: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  partial: "bg-amber-50 text-amber-800 border-amber-200",
-  ungoverned: "bg-gray-100 text-gray-600 border-gray-200",
-};
-
 const searchText = (q: SavedQuery) => [q.name, q.description, isSqlQuery(q) ? q.sql : q.prompt].join("\n").toLowerCase();
 
 export function MyQueries({ onLoadQuery }: MyQueriesProps) {
-  const { queries, loading, loaded, deleteQuery } = useQueryBuilder();
+  const { queries, loading, loaded, deleteQuery, reload } = useQueryBuilder();
+  const { tenant } = useAuth();
   const [search, setSearch] = useState("");
+  const [sharing, setSharing] = useState<SavedQuery | null>(null);
   const [runs, setRuns] = useState<Record<string, Run>>({});
 
   const filtered = queries.filter((q) => !search || searchText(q).includes(search.toLowerCase()));
@@ -89,6 +89,7 @@ export function MyQueries({ onLoadQuery }: MyQueriesProps) {
         {filtered.map((q) => {
           const hint = hintOf(q);
           const run = runs[q.id];
+          const status = shareStatus(q.shared, tenant?.name);
           return (
             <div
               key={q.id}
@@ -98,14 +99,12 @@ export function MyQueries({ onLoadQuery }: MyQueriesProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h4 className="text-sm font-semibold text-gray-900 truncate">{q.name}</h4>
-                    <span title="The label its last run would carry; each run is labelled from what actually ran"
-                      className={`flex-shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-medium ${HINT_STYLES[hint]}`}>
-                      {isSqlQuery(q) ? `SQL · ${hintLabel(hint)}` : hintLabel(hint)}
-                    </span>
+                    <HintChip hint={hint} sql={isSqlQuery(q)} />
                   </div>
                   <p className="text-xs text-gray-500 mt-1 line-clamp-2">{q.description}</p>
                   <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
                     <span className="flex items-center gap-1"><Clock size={11} />{formatDate(q.lastUsedAt || q.createdAt)}</span>
+                    {status && <span className="flex items-center gap-1 text-[#0066FF]"><Users size={11} />{status}</span>}
                     {isSqlQuery(q)
                       ? <span className="truncate max-w-[300px] font-mono">{q.sql}</span>
                       : q.prompt && <span className="truncate max-w-[200px]">Prompt: {q.prompt}</span>}
@@ -135,6 +134,13 @@ export function MyQueries({ onLoadQuery }: MyQueriesProps) {
                     <Copy size={14} />
                   </button>
                   <button
+                    onClick={() => setSharing(q)}
+                    className="p-1.5 text-gray-400 hover:text-[#0066FF] hover:bg-gray-50 rounded transition-colors"
+                    title="Share"
+                  >
+                    <Share2 size={14} />
+                  </button>
+                  <button
                     onClick={() => deleteQuery(q.id)}
                     className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                     title="Delete"
@@ -159,6 +165,10 @@ export function MyQueries({ onLoadQuery }: MyQueriesProps) {
           );
         })}
       </div>
+      {sharing && (
+        <ShareDialog kind="query" itemId={sharing.id} itemName={sharing.name}
+          onClose={() => setSharing(null)} onChanged={() => void reload()} />
+      )}
     </div>
   );
 }

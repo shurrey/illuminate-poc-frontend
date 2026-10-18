@@ -4,13 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { CardResult } from "@/hooks/useDashboardCards";
-import { AlertCircle, Code2, Info, MessageSquare, ShieldCheck } from "lucide-react";
+import { AlertCircle, Code2, Info, MessageSquare, ShieldCheck, Users } from "lucide-react";
+import { isPinnedShared } from "@/lib/sharing";
 import { SqlViewModal, InfoModal } from "./CardModals";
 import { ContractCalculation } from "./MetricInfo";
 
 export function LiveKPICard({ result }: { result: CardResult }) {
   const { card, value, sql, provenance, loading, error } = result;
   const router = useRouter();
+  const sharedBy = isPinnedShared(card) ? card.owner?.name ?? "a colleague" : null;
   const [showSql, setShowSql] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const definedBy = [...(provenance?.metrics ?? []), ...(provenance?.measures ?? []),
@@ -47,6 +49,11 @@ export function LiveKPICard({ result }: { result: CardResult }) {
           )}
 
           <p className="text-xs text-gray-400 mt-1">{card.description}</p>
+          {sharedBy && (
+            <span className="inline-flex items-center gap-1 mt-2 px-1.5 py-0.5 rounded bg-[#0066FF]/10 text-[#0066FF] text-[10px] font-medium">
+              <Users size={10} /> Shared by {sharedBy}
+            </span>
+          )}
 
           {/* Bottom action icons */}
           {!loading && !error && (
@@ -65,13 +72,15 @@ export function LiveKPICard({ result }: { result: CardResult }) {
               >
                 <Info size={14} />
               </button>
-              <button
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/chat?prompt=${encodeURIComponent(card.prompt)}`); }}
-                className="text-gray-300 hover:text-[#0066FF] transition-colors p-1.5 rounded hover:bg-gray-50"
-                title="Ask about this"
-              >
-                <MessageSquare size={14} />
-              </button>
+              {card.prompt && (
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/chat?prompt=${encodeURIComponent(card.prompt)}`); }}
+                  className="text-gray-300 hover:text-[#0066FF] transition-colors p-1.5 rounded hover:bg-gray-50"
+                  title="Ask about this"
+                >
+                  <MessageSquare size={14} />
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -5,10 +5,11 @@ import { MyQueries } from "@/components/queries/MyQueries";
 import { NewQuery } from "@/components/queries/NewQuery";
 import { ImportQuery } from "@/components/queries/ImportQuery";
 import { SqlQuery } from "@/components/queries/SqlQuery";
+import { SharedWithMe } from "@/components/sharing/SharedWithMe";
 import { isSqlQuery, type SavedQuery } from "@/types/queryBuilder";
-import { Code2, Database, Plus, Upload, FolderOpen } from "lucide-react";
+import { Code2, Database, Plus, Upload, FolderOpen, Users } from "lucide-react";
 
-type Tab = "my-queries" | "new-query" | "sql" | "import";
+type Tab = "my-queries" | "shared" | "new-query" | "sql" | "import";
 
 export default function QueriesPage() {
   const [activeTab, setActiveTab] = useState<Tab>("new-query");
@@ -25,6 +26,7 @@ export default function QueriesPage() {
     { id: "new-query", label: "New Query", icon: Plus },
     { id: "sql", label: "SQL", icon: Code2 },
     { id: "my-queries", label: "My Queries", icon: FolderOpen },
+    { id: "shared", label: "Shared with me", icon: Users },
     { id: "import", label: "Import", icon: Upload },
   ];
 
@@ -75,6 +77,7 @@ export default function QueriesPage() {
           onViewSaved={() => { setLoadedQuery(null); setActiveTab("my-queries"); }} />
       )}
       {activeTab === "my-queries" && <MyQueries onLoadQuery={handleLoadQuery} />}
+      {activeTab === "shared" && <SharedWithMe kind="query" />}
       {activeTab === "import" && <ImportQuery onViewSaved={() => setActiveTab("my-queries")} />}
     </div>
   );

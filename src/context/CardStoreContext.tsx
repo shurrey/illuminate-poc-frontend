@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useProfileStore } from "@/hooks/useProfileStore";
 import { ProfileStore, createThenReload, layoutOf, moved, toggled } from "@/lib/profileStore";
 import * as api from "@/services/profileApi";
+import { pinSharedCard as pinShared } from "@/services/sharingApi";
 
 interface CardStoreContextType {
   cards: DashboardCard[];
@@ -22,6 +23,8 @@ interface CardStoreContextType {
   toggleCard: (id: string) => Promise<boolean>;
   moveCard: (id: string, direction: "up" | "down") => Promise<boolean>;
   resetToDefaults: () => Promise<boolean>;
+  /** Adds a card shared with the user to their home page; removeCard takes it off again. */
+  pinSharedCard: (shareId: string) => Promise<boolean>;
 }
 
 const CardStoreContext = createContext<CardStoreContextType | undefined>(undefined);
@@ -86,6 +89,12 @@ export function CardStoreProvider({ children }: { children: React.ReactNode }) {
     merge: takeView,
   }), [store]);
 
+  const pinSharedCard = useCallback((shareId: string) => store.mutate({
+    apply: (s) => s,
+    send: () => pinShared(shareId),
+    merge: takeView,
+  }), [store]);
+
   const clearError = useCallback(() => store.clearError(), [store]);
   const reload = useCallback(() => store.load(), [store]);
 
@@ -93,7 +102,7 @@ export function CardStoreProvider({ children }: { children: React.ReactNode }) {
     <CardStoreContext.Provider
       value={{
         cards, enabledCards, loading, loaded, error, clearError, reload,
-        addCard, updateCard, removeCard, toggleCard, moveCard, resetToDefaults,
+        addCard, updateCard, removeCard, toggleCard, moveCard, resetToDefaults, pinSharedCard,
       }}
     >
       {children}

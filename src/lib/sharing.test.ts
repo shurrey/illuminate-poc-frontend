@@ -142,22 +142,25 @@ describe("shared-with-me entries", () => {
   });
 });
 
+type Detail = Parameters<typeof hiddenForRole>[0] & Record<string, unknown>;
+const view = (d: Detail) => d;
+
 describe("hiddenForRole", () => {
   it("is true for a redacted view with masked values", () => {
-    expect(hiddenForRole({ redacted: true, sql: "select * from t where name = '…'" })).toBe(true);
-    expect(hiddenForRole({ redacted: true, contract: { filters: [{ dimension: "d", op: "eq", values: ["…"] }] } })).toBe(true);
+    expect(hiddenForRole(view({ redacted: true, sql: "select * from t where name = '…'" }))).toBe(true);
+    expect(hiddenForRole(view({ redacted: true, contract: { filters: [{ dimension: "d", op: "eq", values: ["…"] }] } }))).toBe(true);
   });
 
   it("is true when the SQL text was withheld", () => {
-    expect(hiddenForRole({ redacted: true, sql: null, note: "hidden" })).toBe(true);
+    expect(hiddenForRole(view({ redacted: true, sql: null, note: "hidden" }))).toBe(true);
   });
 
   it("is false for a redacted view where nothing was masked", () => {
-    expect(hiddenForRole({ redacted: true, contract: { metrics: ["m.a"] } })).toBe(false);
+    expect(hiddenForRole(view({ redacted: true, contract: { metrics: ["m.a"] } }))).toBe(false);
   });
 
   it("is false for an unredacted view even if a value contains an ellipsis", () => {
-    expect(hiddenForRole({ redacted: false, sql: "select '…'" })).toBe(false);
+    expect(hiddenForRole(view({ redacted: false, sql: "select '…'" }))).toBe(false);
   });
 });
 
