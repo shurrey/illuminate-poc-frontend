@@ -59,7 +59,8 @@ This POC demonstrates a unified analytics dashboard, a conversational AI interfa
 Browser
   ├── Static site (S3 + CloudFront)
   │   ├── Next.js 16 static export
-  │   ├── Cognito auth (amazon-cognito-identity-js)
+  │   ├── Cognito auth: hosted sign-in (code + PKCE) when NEXT_PUBLIC_COGNITO_DOMAIN is set,
+  │   │   otherwise the email and password form (amazon-cognito-identity-js)
   │   └── Tailwind CSS + Recharts
   │
   ├── Agent API (Lambda Function URL) ← illuminate-conversational-intelligence project
@@ -93,6 +94,7 @@ The stack does **not** manage Cognito, the Lambda API, or Snowflake — those be
   - `/illuminate/dev/cognito-pool-id`
   - `/illuminate/dev/cognito-client-id`
   - `/illuminate/dev/api-url`
+- The platform identity stack deployed, with `/ai-first-platform/dev/auth-domain` published (hosted sign-in)
 
 ## Setup
 
@@ -105,6 +107,15 @@ cd infra && npm install && cd ..
 cp .env.example .env.local
 # Edit .env.local with values from SSM or the companion project's stack outputs
 ```
+
+### Sign-in
+
+With `NEXT_PUBLIC_COGNITO_DOMAIN` set at build time, the app signs in through the platform's hosted
+sign-in page (authorization code with PKCE), so someone already signed in to another product gets in
+without a password. The hosted UI returns to `/auth/callback`; signing out ends the hosted session too
+and lands on `/login`. Without it, the app shows its own email and password form. Either way the
+session is kept in `sessionStorage` (one tab, at most 4 hours). A user without the `illuminate-users`
+group sees "You don't have access to Illuminate" and a sign-out button.
 
 ## Development
 
@@ -147,6 +158,7 @@ The stack outputs will show:
 - `SiteUrl` — your CloudFront URL
 - `UserPoolId` / `UserPoolClientId` — from SSM
 - `AgentApiUrl` — Lambda Function URL from SSM
+- `AuthDomain` — hosted sign-in origin from SSM, for `NEXT_PUBLIC_COGNITO_DOMAIN`
 
 After the first deploy, update `.env.local` with the CloudFront URL for the redirect URLs, rebuild, and redeploy to bake in the correct values.
 
