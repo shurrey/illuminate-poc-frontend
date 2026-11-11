@@ -22,6 +22,9 @@ export class IlluminateStack extends cdk.Stack {
     const userPoolId = ssm.StringParameter.valueForStringParameter(this, `${prefix}/cognito-pool-id`);
     const userPoolClientId = ssm.StringParameter.valueForStringParameter(this, `${prefix}/cognito-client-id`);
     const agentApiUrl = ssm.StringParameter.valueForStringParameter(this, `${prefix}/api-url`);
+    // Hosted sign-in origin, published by the platform identity stack.
+    const authDomain = ssm.StringParameter.valueForStringParameter(
+      this, `/ai-first-platform/${prefix.split("/").pop()}/auth-domain`);
 
     // Static site hosting
     const hosting = new Hosting(this, "Hosting", {
@@ -82,6 +85,11 @@ def handler(event, context):
     new cdk.CfnOutput(this, "UserPoolClientId", {
       value: userPoolClientId,
       description: "Cognito App Client ID (from SSM)",
+    });
+
+    new cdk.CfnOutput(this, "AuthDomain", {
+      value: authDomain,
+      description: "Hosted sign-in origin for NEXT_PUBLIC_COGNITO_DOMAIN (from SSM)",
     });
 
     new cdk.CfnOutput(this, "AgentApiUrl", {
