@@ -1,4 +1,5 @@
 import * as cdk from "aws-cdk-lib";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
@@ -9,6 +10,8 @@ import * as path from "path";
 export interface HostingProps {
   /** Path to the Next.js static export output directory */
   sitePath: string;
+  /** Custom domain for the site, e.g. "illuminate.hurrey.dev". Its DNS is outside AWS. */
+  siteDomain?: string;
 }
 
 /**
@@ -58,6 +61,14 @@ function handler(event) {
       runtime: cloudfront.FunctionRuntime.JS_2_0,
     });
 
+    // No hosted zone: CloudFormation waits until the validation CNAME is added in Cloudflare.
+    const certificate = props.siteDomain
+      ? new acm.Certificate(this, "Certificate", {
+          domainName: props.siteDomain,
+          validation: acm.CertificateValidation.fromDns(),
+        })
+      : undefined;
+
     this.distribution = new cloudfront.Distribution(this, "Distribution", {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
@@ -70,6 +81,9 @@ function handler(event) {
           },
         ],
       },
+      ...(props.siteDomain && certificate
+        ? { domainNames: [props.siteDomain], certificate }
+        : {}),
       defaultRootObject: "index.html",
       // SPA fallback for truly unknown routes (not pre-rendered)
       errorResponses: [
@@ -88,11 +102,28 @@ function handler(event) {
       ],
     });
 
-    new s3deploy.BucketDeployment(this, "DeploySite", {
+    const staticAssets = "_next/static/*";
+
+    // Hashed build assets: cacheable forever. prune is off so this deployment never deletes HTML.
+    const assetsDeployment = new s3deploy.BucketDeployment(this, "DeploySiteAssets", {
       sources: [s3deploy.Source.asset(props.sitePath)],
       destinationBucket: this.bucket,
+      exclude: ["*"],
+      include: [staticAssets],
+      prune: false,
+      cacheControl: [s3deploy.CacheControl.fromString("public,max-age=31536000,immutable")],
+    });
+
+    // Everything else (HTML, unhashed files) must revalidate. Excluded assets are left alone by prune.
+    const siteDeployment = new s3deploy.BucketDeployment(this, "DeploySite", {
+      sources: [s3deploy.Source.asset(props.sitePath)],
+      destinationBucket: this.bucket,
+      exclude: [staticAssets],
+      cacheControl: [s3deploy.CacheControl.noCache()],
       distribution: this.distribution,
       distributionPaths: ["/*"],
     });
+    // HTML goes live only after the assets it references exist.
+    siteDeployment.node.addDependency(assetsDeployment);
   }
 }
