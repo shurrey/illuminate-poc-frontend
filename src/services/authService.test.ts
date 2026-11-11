@@ -1,13 +1,164 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-beforeAll(() => {
+function memoryStorage() {
   const store = new Map<string, string>();
-  vi.stubGlobal("localStorage", {
+  return {
     getItem: (k: string) => store.get(k) ?? null,
     setItem: (k: string, v: string) => { store.set(k, v); },
     removeItem: (k: string) => { store.delete(k); },
     key: (i: number) => [...store.keys()][i] ?? null,
     get length() { return store.size; },
+  };
+}
+
+beforeAll(() => {
+  vi.stubGlobal("localStorage", memoryStorage());
+  vi.stubGlobal("sessionStorage", memoryStorage());
+});
+
+const ORIGIN = "https://illuminate.example.com";
+
+function idToken(claims: Record<string, unknown>): string {
+  const part = (v: unknown) => btoa(JSON.stringify(v)).replace(/=+$/, "");
+  return `${part({ alg: "RS256" })}.${part({ exp: Math.floor(Date.now() / 1000) + 3600, ...claims })}.sig`;
+}
+
+describe("hosted sign-in", () => {
+  const assign = vi.fn();
+
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_COGNITO_DOMAIN", "https://auth.example.com");
+    vi.stubEnv("NEXT_PUBLIC_COGNITO_CLIENT_ID", "web-client");
+    vi.stubGlobal("window", { location: { origin: ORIGIN, assign }, addEventListener: () => {} });
+    assign.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.stubGlobal("window", undefined);
+    vi.restoreAllMocks();
+  });
+
+  async function signIn(claims: Record<string, unknown> = { sub: "alice", email: "a@x.edu", name: "Alice" }) {
+    const { authService } = await import("./authService");
+    authService.logout();
+    (authService as unknown as { redirecting: boolean }).redirecting = false;
+    await authService.startHostedSignIn("/queries");
+    const state = new URL(assign.mock.calls[0][0]).searchParams.get("state")!;
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ id_token: idToken(claims), refresh_token: "refresh" }), { status: 200 }));
+    const result = await authService.completeHostedSignIn(new URLSearchParams({ code: "abc", state }));
+    return { authService, result };
+  }
+
+  it("keeps the session in sessionStorage, not localStorage", async () => {
+    const { authService, result } = await signIn();
+    expect(result).toMatchObject({ returnTo: "/queries" });
+    expect(authService.isAuthenticated()).toBe(true);
+    expect(authService.getUser()).toEqual({ id: "alice", name: "Alice", email: "a@x.edu" });
+    expect(JSON.parse(sessionStorage.getItem("illuminate_auth")!).token).toBe(authService.getToken());
+    expect(localStorage.getItem("illuminate_auth")).toBeNull();
+  });
+
+  it("ends the session after four hours", async () => {
+    const { authService } = await signIn();
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 4 * 60 * 60 * 1000 + 1);
+    expect(authService.isAuthenticated()).toBe(false);
+    expect(sessionStorage.getItem("illuminate_auth")).toBeNull();
+  });
+
+  it("counts platform system admins as admins", async () => {
+    const { authService } = await signIn({ sub: "alice", "cognito:groups": ["illuminate-users", "platform-system-admins"] });
+    expect(authService.isAdmin()).toBe(true);
+  });
+
+  it("signs out of the hosted UI and starts no sign-in afterwards", async () => {
+    const { authService } = await signIn();
+    assign.mockReset();
+    authService.signOut();
+    await authService.startHostedSignIn("/");
+    expect(authService.isAuthenticated()).toBe(false);
+    expect(sessionStorage.getItem("illuminate_auth")).toBeNull();
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign.mock.calls[0][0]).toBe(
+      `https://auth.example.com/logout?client_id=web-client&logout_uri=${encodeURIComponent(`${ORIGIN}/login`)}`);
+  });
+
+  it("starts the hosted sign-in once per page", async () => {
+    const { authService } = await import("./authService");
+    (authService as unknown as { redirecting: boolean }).redirecting = false;
+    await authService.startHostedSignIn("/");
+    await authService.startHostedSignIn("/");
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes an expired ID token with the refresh token", async () => {
+    const { authService } = await signIn({ sub: "alice", exp: Math.floor(Date.now() / 1000) - 10 });
+    const fresh = idToken({ sub: "alice" });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ id_token: fresh }), { status: 200 }));
+    expect(await authService.getValidToken()).toBe(fresh);
+    expect(String(fetchMock.mock.lastCall![1]!.body)).toContain("grant_type=refresh_token");
+  });
+});
+
+describe("no access", () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  async function respond(status: number, body: unknown) {
+    const { authService } = await import("./authService");
+    vi.spyOn(authService, "getValidToken").mockResolvedValue("alice-token");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(body), { status }));
+    const listener = vi.fn();
+    const off = authService.onNoAccess(listener);
+    const resp = await authService.authedFetch("/api/v1/me");
+    off();
+    return { listener, resp };
+  }
+
+  it("tells listeners when the API answers 403 NO_ACCESS, and the body is still readable", async () => {
+    const { listener, resp } = await respond(403, { detail: "You don't have access to Illuminate", code: "NO_ACCESS" });
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect((await resp.json()).code).toBe("NO_ACCESS");
+  });
+
+  it("ignores other 403s", async () => {
+    const { listener } = await respond(403, { detail: "Your organization is not set up yet" });
+    expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe("clearLegacyAuthStorage", () => {
+  it("removes the old session and every Cognito SDK key from localStorage, and nothing else", async () => {
+    const { clearLegacyAuthStorage } = await import("./authService");
+    const storage = memoryStorage();
+    storage.setItem("illuminate_auth", "{}");
+    storage.setItem("CognitoIdentityServiceProvider.web-client.alice.idToken", "id");
+    storage.setItem("CognitoIdentityServiceProvider.web-client.LastAuthUser", "alice");
+    storage.setItem("CognitoIdentityServiceProvider.other-client.bob.refreshToken", "r");
+    storage.setItem("illuminate-queries-v2:alice", "[]");
+    storage.setItem("unrelated", "kept");
+
+    clearLegacyAuthStorage(storage as unknown as Storage);
+
+    expect([...Array(storage.length).keys()].map((i) => storage.key(i)).sort())
+      .toEqual(["illuminate-queries-v2:alice", "unrelated"]);
+  });
+
+  it("runs when the app loads", async () => {
+    vi.resetModules();
+    localStorage.setItem("illuminate_auth", "{}");
+    localStorage.setItem("CognitoIdentityServiceProvider.web-client.LastAuthUser", "alice");
+    vi.stubGlobal("window", { location: { origin: ORIGIN }, addEventListener: () => {} });
+    try {
+      await import("./authService");
+    } finally {
+      vi.stubGlobal("window", undefined);
+      vi.resetModules();
+    }
+    expect(localStorage.getItem("illuminate_auth")).toBeNull();
+    expect(localStorage.getItem("CognitoIdentityServiceProvider.web-client.LastAuthUser")).toBeNull();
   });
 });
 

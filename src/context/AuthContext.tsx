@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authService } from "@/services/authService";
 import { fetchTenant, type Tenant } from "@/services/meApi";
+import type { CallbackResult } from "@/lib/hostedSignIn";
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -18,6 +19,74 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const pathIs = (path: string) => window.location.pathname.replace(/\/+$/, "") === path;
+
+// Shared by both runs of the mount effect in development, so the callback's code is redeemed once.
+let callback: Promise<CallbackResult> | null = null;
+
+function Brand() {
+  return (
+    <div className="text-center mb-8">
+      <div className="inline-flex items-center gap-2 mb-2">
+        <div
+          className="w-9 h-9 rounded-md flex items-center justify-center font-bold text-white text-sm"
+          style={{ backgroundColor: "#1a1a2e", fontFamily: "Poppins, sans-serif" }}
+        >
+          Bb
+        </div>
+        <span className="text-2xl" style={{ fontFamily: "Poppins, sans-serif", color: "#1a1a2e" }}>
+          <span className="font-bold">Blackboard</span>{" "}
+          <span className="font-normal opacity-60">Illuminate</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HostedLoginPage({ error }: { error: string | null }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f5f6f8]">
+      <div className="max-w-sm w-full px-4">
+        <Brand />
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => authService.startHostedSignIn(pathIs("/login") ? "/" : window.location.pathname + window.location.search)}
+            className="w-full py-2.5 bg-[#0066FF] hover:bg-[#0052cc] text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            Sign in
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NoAccessPage({ onSignOut }: { onSignOut: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f5f6f8]">
+      <div className="max-w-sm w-full px-4">
+        <Brand />
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4 text-center">
+          <p className="text-sm text-gray-800">You don&apos;t have access to Illuminate</p>
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="w-full py-2.5 bg-[#0066FF] hover:bg-[#0052cc] text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function LoginPage({ onLogin, error, loading }: {
   onLogin: (u: string, p: string) => void;
@@ -35,20 +104,7 @@ function LoginPage({ onLogin, error, loading }: {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f5f6f8]">
       <div className="max-w-sm w-full px-4">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <div
-              className="w-9 h-9 rounded-md flex items-center justify-center font-bold text-white text-sm"
-              style={{ backgroundColor: "#1a1a2e", fontFamily: "Poppins, sans-serif" }}
-            >
-              Bb
-            </div>
-            <span className="text-2xl" style={{ fontFamily: "Poppins, sans-serif", color: "#1a1a2e" }}>
-              <span className="font-bold">Blackboard</span>{" "}
-              <span className="font-normal opacity-60">Illuminate</span>
-            </span>
-          </div>
-        </div>
+        <Brand />
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
           <div>
@@ -103,6 +159,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [tenantError, setTenantError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [noAccess, setNoAccess] = useState(false);
+  const hosted = authService.isHosted();
   // Changes whenever a session starts or ends, remounting the app so no page keeps another session's state.
   const [session, setSession] = useState(0);
 
@@ -118,20 +176,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    setIsAuthenticated(authService.isAuthenticated());
-    setUser(authService.getUser());
-    setIsAdmin(authService.isAdmin());
-    setIsLoading(false);
-    return authService.onSessionExpired(() => {
+    let cancelled = false;
+    const settle = () => {
+      if (cancelled) return;
+      setIsAuthenticated(authService.isAuthenticated());
+      setUser(authService.getUser());
+      setIsAdmin(authService.isAdmin());
+      setIsLoading(false);
+    };
+    if (authService.isHosted() && pathIs("/auth/callback")) {
+      callback ??= authService.completeHostedSignIn(new URLSearchParams(window.location.search));
+      callback.then((result) => {
+        if (!("error" in result)) {
+          window.location.replace(result.returnTo);
+          return;
+        }
+        window.history.replaceState(null, "", "/login/");
+        if (!cancelled) setError(result.error);
+        settle();
+      });
+    } else {
+      settle();
+    }
+    const offNoAccess = authService.onNoAccess(() => setNoAccess(true));
+    const offExpired = authService.onSessionExpired(() => {
       setSession((n) => n + 1);
       setIsAuthenticated(false);
       setUser(null);
       setIsAdmin(false);
       setTenant(null);
       setTenantError(false);
+      setNoAccess(false);
       setError("Your session has expired. Please sign in again.");
     });
+    return () => {
+      cancelled = true;
+      offNoAccess();
+      offExpired();
+    };
   }, []);
+
+  // Hosted sign-in starts on its own, silently while the hosted UI's session lasts. It waits for a click
+  // after an error or on /login (where sign-out lands), so a refused sign-in never loops.
+  useEffect(() => {
+    if (!hosted || isLoading || isAuthenticated || error || pathIs("/login") || pathIs("/auth/callback")) return;
+    authService.startHostedSignIn(window.location.pathname + window.location.search);
+  }, [hosted, isLoading, isAuthenticated, error]);
 
   const login = useCallback(async (username: string, password: string) => {
     setError(null);
@@ -150,7 +240,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
-    authService.logout();
+    authService.signOut();
+    setNoAccess(false);
     setSession((n) => n + 1);
     setIsAuthenticated(false);
     setUser(null);
@@ -170,9 +261,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0066FF]" />
         </div>
       )}
-      {!isLoading && !isAuthenticated && (
-        <LoginPage onLogin={login} error={error} loading={isLoading} />
-      )}
+      {!isLoading && !isAuthenticated && (hosted
+        ? <HostedLoginPage error={error} />
+        : <LoginPage onLogin={login} error={error} loading={isLoading} />)}
+      {isAuthenticated && noAccess && <NoAccessPage onSignOut={signOut} />}
     </AuthContext.Provider>
   );
 }

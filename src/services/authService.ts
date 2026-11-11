@@ -3,18 +3,42 @@
 import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession } from "amazon-cognito-identity-js";
 import { endSession, sessionCheck } from "@/lib/session";
 import { clearAppStorage } from "@/lib/profileImport";
+import {
+  completeHostedSignIn, hostedConfig, hostedSignInUrl, hostedSignOutUrl, refreshHostedTokens, type CallbackResult,
+} from "@/lib/hostedSignIn";
 
 interface AuthState {
   user: { id: string; name: string; email?: string } | null;
   isAuthenticated: boolean;
   token: string | null;
   loginTimestamp: number | null;
+  /** Hosted sign-in only; the email and password flow keeps its refresh token in the Cognito SDK's storage. */
+  refreshToken?: string | null;
 }
 
 const STORAGE_KEY = "illuminate_auth";
 /** Cognito group whose members may edit metric overlays; the API enforces the same group. */
 export const ADMIN_GROUP = "illuminate-admins";
+/** Platform system admins are Illuminate admins too (the API maps the group the same way). */
+const PLATFORM_ADMIN_GROUP = "platform-system-admins";
 const SESSION_MAX_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours
+/** The API's error code for a valid token whose user lacks Illuminate access. */
+export const NO_ACCESS = "NO_ACCESS";
+
+/**
+ * Removes the session and Cognito SDK tokens that earlier builds kept in localStorage, where they outlived the tab.
+ * Never throws.
+ */
+export function clearLegacyAuthStorage(storage: Storage = localStorage): void {
+  try {
+    const keys = [STORAGE_KEY];
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (key?.startsWith("CognitoIdentityServiceProvider.")) keys.push(key);
+    }
+    keys.forEach((key) => storage.removeItem(key));
+  } catch {}
+}
 
 /** Decode a JWT payload without verification (just to read exp). */
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -39,12 +63,18 @@ class AuthService {
   private userPool: CognitoUserPool | null = null;
   private refreshPromise: Promise<string | null> | null = null;
   private expiredListeners = new Set<() => void>();
+  private noAccessListeners = new Set<() => void>();
+  private redirecting = false;
 
   constructor() {
     if (typeof window !== "undefined") {
       this.loadFromStorage();
       this.initUserPool();
       this.checkSessionExpiry();
+      // Back from the hosted UI can restore this page from the back-forward cache, flag included.
+      window.addEventListener("pageshow", (e) => {
+        if (e.persisted) this.redirecting = false;
+      });
     }
   }
 
@@ -52,20 +82,66 @@ class AuthService {
     const userPoolId = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID;
     const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
     if (userPoolId && clientId) {
-      this.userPool = new CognitoUserPool({ UserPoolId: userPoolId, ClientId: clientId });
+      this.userPool = new CognitoUserPool({ UserPoolId: userPoolId, ClientId: clientId, Storage: sessionStorage });
     }
   }
 
   private loadFromStorage() {
+    clearLegacyAuthStorage();
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = sessionStorage.getItem(STORAGE_KEY);
       if (stored) this.state = JSON.parse(stored);
     } catch {}
   }
 
   private saveToStorage() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+    } catch {}
+  }
+
+  /** True when the build signs in through the hosted UI rather than the email and password form. */
+  isHosted(): boolean {
+    return hostedConfig() !== null;
+  }
+
+  /** Sends the browser to the hosted UI, which returns at once while its session lasts. Runs once per page. */
+  async startHostedSignIn(returnTo: string): Promise<void> {
+    const config = hostedConfig();
+    if (!config || this.redirecting) return;
+    this.redirecting = true;
+    window.location.assign(await hostedSignInUrl(config, returnTo));
+  }
+
+  /** Redeems the callback's code and starts the session; the result carries where to go next or what went wrong. */
+  async completeHostedSignIn(params: URLSearchParams): Promise<CallbackResult> {
+    const config = hostedConfig();
+    if (!config) return { error: "Sign-in is not configured." };
+    const result = await completeHostedSignIn(config, params);
+    if ("error" in result) return result;
+    const payload = decodeJwtPayload(result.idToken);
+    if (!payload || typeof payload.sub !== "string") return { error: "Sign-in failed. Please try again." };
+    const user = {
+      id: payload.sub,
+      name: String(payload.name || payload.email || payload.sub),
+      email: typeof payload.email === "string" ? payload.email : undefined,
+    };
+    this.state = { user, isAuthenticated: true, token: result.idToken, loginTimestamp: Date.now(), refreshToken: result.refreshToken };
+    this.saveToStorage();
+    return result;
+  }
+
+  /** Called when the API refuses the signed-in user because they lack Illuminate access. */
+  onNoAccess(listener: () => void): () => void {
+    this.noAccessListeners.add(listener);
+    return () => { this.noAccessListeners.delete(listener); };
+  }
+
+  private async notifyIfNoAccess(resp: Response): Promise<void> {
+    if (resp.status !== 403) return;
+    try {
+      const body = await resp.clone().json();
+      if (body?.code === NO_ACCESS) this.noAccessListeners.forEach((l) => l());
     } catch {}
   }
 
@@ -102,6 +178,7 @@ class AuthService {
     const headers = { ...(init.headers as Record<string, string> | undefined), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     const resp = await fetch(input, { ...init, headers });
     if (resp.status === 401 && token) this.expireSession();
+    if (token) await this.notifyIfNoAccess(resp);
     return resp;
   }
 
@@ -119,6 +196,23 @@ class AuthService {
    */
   private refreshToken(): Promise<string | null> {
     if (this.refreshPromise) return this.refreshPromise;
+
+    const hosted = hostedConfig();
+    const hostedRefresh = this.state.refreshToken;
+    if (hosted && hostedRefresh) {
+      this.refreshPromise = refreshHostedTokens(hosted, hostedRefresh).then((idToken) => {
+        if (!idToken) {
+          this.expireSession();
+          return null;
+        }
+        this.state.token = idToken;
+        this.saveToStorage();
+        return idToken;
+      }).finally(() => {
+        this.refreshPromise = null;
+      });
+      return this.refreshPromise;
+    }
 
     this.refreshPromise = new Promise<string | null>((resolve) => {
       if (!this.userPool) { resolve(null); return; }
@@ -181,7 +275,7 @@ class AuthService {
   isAdmin(): boolean {
     const payload = this.state.token ? decodeJwtPayload(this.state.token) : null;
     const groups = payload?.["cognito:groups"];
-    return Array.isArray(groups) && groups.includes(ADMIN_GROUP);
+    return Array.isArray(groups) && (groups.includes(ADMIN_GROUP) || groups.includes(PLATFORM_ADMIN_GROUP));
   }
 
   isAuthenticated(): boolean {
@@ -217,7 +311,7 @@ class AuthService {
   }
 
   logout() {
-    // Sign out of Cognito SDK (clears its internal localStorage tokens)
+    // Sign out of the Cognito SDK, which clears its tokens from sessionStorage
     if (this.userPool) {
       const cognitoUser = this.userPool.getCurrentUser();
       if (cognitoUser) cognitoUser.signOut();
@@ -225,22 +319,22 @@ class AuthService {
 
     // Clear our auth state
     this.state = { user: null, isAuthenticated: false, token: null, loginTimestamp: null };
-    localStorage.removeItem(STORAGE_KEY);
-
-    // Also clear any Cognito SDK localStorage keys to prevent silent re-auth
-    const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-    if (clientId) {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith(`CognitoIdentityServiceProvider.${clientId}`)) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach((key) => localStorage.removeItem(key));
-    }
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    clearLegacyAuthStorage();
     clearAppStorage();
     endSession();
+  }
+
+  /** Ends the session; with hosted sign-in, also the hosted UI's, so the next sign-in to any product asks for a password. */
+  signOut() {
+    this.logout();
+    const config = hostedConfig();
+    if (!config) return;
+    // Holds off the sign-in redirect the signed-out page would otherwise start.
+    this.redirecting = true;
+    window.location.assign(hostedSignOutUrl(config));
   }
 }
 
