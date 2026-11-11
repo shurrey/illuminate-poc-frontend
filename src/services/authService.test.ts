@@ -129,6 +129,39 @@ describe("no access", () => {
   });
 });
 
+describe("clearLegacyAuthStorage", () => {
+  it("removes the old session and every Cognito SDK key from localStorage, and nothing else", async () => {
+    const { clearLegacyAuthStorage } = await import("./authService");
+    const storage = memoryStorage();
+    storage.setItem("illuminate_auth", "{}");
+    storage.setItem("CognitoIdentityServiceProvider.web-client.alice.idToken", "id");
+    storage.setItem("CognitoIdentityServiceProvider.web-client.LastAuthUser", "alice");
+    storage.setItem("CognitoIdentityServiceProvider.other-client.bob.refreshToken", "r");
+    storage.setItem("illuminate-queries-v2:alice", "[]");
+    storage.setItem("unrelated", "kept");
+
+    clearLegacyAuthStorage(storage as unknown as Storage);
+
+    expect([...Array(storage.length).keys()].map((i) => storage.key(i)).sort())
+      .toEqual(["illuminate-queries-v2:alice", "unrelated"]);
+  });
+
+  it("runs when the app loads", async () => {
+    vi.resetModules();
+    localStorage.setItem("illuminate_auth", "{}");
+    localStorage.setItem("CognitoIdentityServiceProvider.web-client.LastAuthUser", "alice");
+    vi.stubGlobal("window", { location: { origin: ORIGIN }, addEventListener: () => {} });
+    try {
+      await import("./authService");
+    } finally {
+      vi.stubGlobal("window", undefined);
+      vi.resetModules();
+    }
+    expect(localStorage.getItem("illuminate_auth")).toBeNull();
+    expect(localStorage.getItem("CognitoIdentityServiceProvider.web-client.LastAuthUser")).toBeNull();
+  });
+});
+
 describe("authService.logout", () => {
   it("ends the session, so per-session caches are cleared", async () => {
     const { onSessionEnd, sessionCheck } = await import("@/lib/session");

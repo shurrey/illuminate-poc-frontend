@@ -25,6 +25,21 @@ const SESSION_MAX_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours
 /** The API's error code for a valid token whose user lacks Illuminate access. */
 export const NO_ACCESS = "NO_ACCESS";
 
+/**
+ * Removes the session and Cognito SDK tokens that earlier builds kept in localStorage, where they outlived the tab.
+ * Never throws.
+ */
+export function clearLegacyAuthStorage(storage: Storage = localStorage): void {
+  try {
+    const keys = [STORAGE_KEY];
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (key?.startsWith("CognitoIdentityServiceProvider.")) keys.push(key);
+    }
+    keys.forEach((key) => storage.removeItem(key));
+  } catch {}
+}
+
 /** Decode a JWT payload without verification (just to read exp). */
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -72,9 +87,8 @@ class AuthService {
   }
 
   private loadFromStorage() {
+    clearLegacyAuthStorage();
     try {
-      // Earlier builds kept the session in localStorage, where it outlived the tab.
-      localStorage.removeItem(STORAGE_KEY);
       const stored = sessionStorage.getItem(STORAGE_KEY);
       if (stored) this.state = JSON.parse(stored);
     } catch {}
@@ -297,7 +311,7 @@ class AuthService {
   }
 
   logout() {
-    // Sign out of Cognito SDK (clears its internal localStorage tokens)
+    // Sign out of the Cognito SDK, which clears its tokens from sessionStorage
     if (this.userPool) {
       const cognitoUser = this.userPool.getCurrentUser();
       if (cognitoUser) cognitoUser.signOut();
@@ -307,21 +321,8 @@ class AuthService {
     this.state = { user: null, isAuthenticated: false, token: null, loginTimestamp: null };
     try {
       sessionStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(STORAGE_KEY);
     } catch {}
-
-    // Also clear any Cognito SDK localStorage keys to prevent silent re-auth
-    const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-    if (clientId) {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith(`CognitoIdentityServiceProvider.${clientId}`)) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach((key) => localStorage.removeItem(key));
-    }
+    clearLegacyAuthStorage();
     clearAppStorage();
     endSession();
   }
