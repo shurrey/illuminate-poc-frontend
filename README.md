@@ -162,6 +162,17 @@ The stack outputs will show:
 
 After the first deploy, update `.env.local` with the CloudFront URL for the redirect URLs, rebuild, and redeploy to bake in the correct values.
 
+### Custom domain (dev: `illuminate.hurrey.dev`)
+
+`infra/cdk.json` sets `siteDomains.dev`; with no entry for an environment the site is served from CloudFront only. The deploy creates an ACM certificate and **waits until it validates**, so add two DNS records in Cloudflare, both **DNS only** (grey cloud), as for `admin.hurrey.dev`:
+
+1. The ACM validation CNAME. While the deploy waits, read it from the ACM console or `aws acm describe-certificate --region us-east-1 --certificate-arn <arn>` (`DomainValidationOptions[].ResourceRecord`).
+2. `illuminate` CNAME to the `DistributionDomainName` stack output (or the distribution domain in the CloudFront console).
+
+The stack adds both the CloudFront and the custom-domain origin to the API Lambda's `ALLOWED_ORIGINS`. The Cognito app client must also list `https://illuminate.hurrey.dev` as a callback and sign-out URL (platform identity stack, `productUrls.illuminate`), and `.env.local` should use that URL for the redirect URLs when building.
+
+HTML and other unhashed files are uploaded with `Cache-Control: no-cache`; `_next/static/*` is `public,max-age=31536000,immutable`.
+
 ### Tear Down
 
 ```bash

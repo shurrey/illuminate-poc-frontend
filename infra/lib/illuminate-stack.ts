@@ -10,6 +10,8 @@ import { Hosting } from "./hosting";
 export interface IlluminateStackProps extends cdk.StackProps {
   /** SSM parameter path prefix, e.g. "/illuminate/dev" */
   ssmPrefix: string;
+  /** Custom domain for the site, e.g. "illuminate.hurrey.dev"; omit to serve from CloudFront only. */
+  siteDomain?: string;
 }
 
 export class IlluminateStack extends cdk.Stack {
@@ -29,11 +31,13 @@ export class IlluminateStack extends cdk.Stack {
     // Static site hosting
     const hosting = new Hosting(this, "Hosting", {
       sitePath: path.join(__dirname, "../../out"),
+      siteDomain: props.siteDomain,
     });
 
     const siteOrigin = `https://${hosting.distribution.distributionDomainName}`;
+    const allowedOrigins = [siteOrigin, ...(props.siteDomain ? [`https://${props.siteDomain}`] : [])];
 
-    // Add our CloudFront origin to the API Lambda's ALLOWED_ORIGINS, keeping its other environment
+    // Add our site origins (CloudFront and custom domain) to the API Lambda's ALLOWED_ORIGINS, keeping its other environment
     // variables. An API stack deploy resets ALLOWED_ORIGINS, so this runs on every deploy of this stack.
     const apiLambdaName = `illuminate-api-${prefix.split("/").pop()}`;
     const apiLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:${apiLambdaName}`;
@@ -49,12 +53,13 @@ def handler(event, context):
     props = event["ResourceProperties"]
     if event["RequestType"] != "Delete":
         client = boto3.client("lambda")
-        name, origin = props["FunctionName"], props["Origin"]
+        name, new_origins = props["FunctionName"], props["Origins"]
         client.get_waiter("function_updated_v2").wait(FunctionName=name)
         env = client.get_function_configuration(FunctionName=name).get("Environment", {}).get("Variables", {})
         origins = [o.strip() for o in env.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
-        if origin not in origins:
-            env["ALLOWED_ORIGINS"] = ",".join(origins + [origin])
+        missing = [o for o in new_origins if o not in origins]
+        if missing:
+            env["ALLOWED_ORIGINS"] = ",".join(origins + missing)
             client.update_function_configuration(FunctionName=name, Environment={"Variables": env})
             client.get_waiter("function_updated_v2").wait(FunctionName=name)
     return {"PhysicalResourceId": "cors-origin-" + props["FunctionName"]}
@@ -68,13 +73,18 @@ def handler(event, context):
 
     new cdk.CustomResource(this, "AddCorsOrigin", {
       serviceToken: new cr.Provider(this, "AddCorsOriginProvider", { onEventHandler: corsOriginHandler }).serviceToken,
-      properties: { FunctionName: apiLambdaName, Origin: siteOrigin, DeployedAt: new Date().toISOString() },
+      properties: { FunctionName: apiLambdaName, Origins: allowedOrigins, DeployedAt: new Date().toISOString() },
     });
 
     // Outputs
     new cdk.CfnOutput(this, "SiteUrl", {
       value: siteOrigin,
       description: "CloudFront distribution URL",
+    });
+
+    new cdk.CfnOutput(this, "DistributionDomainName", {
+      value: hosting.distribution.distributionDomainName,
+      description: "CNAME target for the custom domain in Cloudflare",
     });
 
     new cdk.CfnOutput(this, "UserPoolId", {
